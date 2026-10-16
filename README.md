@@ -181,7 +181,7 @@ raw input and what it sends to games:
 If something does not behave the way OpenVader says it will, please open an issue with the output of
 `OPENVADER_TRACE=1 build/vaderctl …` and your firmware version.
 
-The controller drawing is schematic. It does not use Flydigi's artwork.
+The controller drawing is OpenVader's own. Its outlines and button positions were measured from the line drawings in Flydigi's user manual ([tools/outline](tools/outline)); no Flydigi image files are included.
 
 ## Credits
 

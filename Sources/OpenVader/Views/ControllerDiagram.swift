@@ -3,10 +3,9 @@ import VaderKit
 
 /// The Vader 5 Pro, front and back.
 ///
-/// The body outline was traced from a product photo (left half, mirrored)
-/// and the controls are placed where they sit on the real controller; the
-/// back follows the official manual's appearance page. All drawing is
-/// original: no vendor artwork is bundled.
+/// Outlines come from the line drawings on the official manual's appearance page (see
+/// `VaderOutline`), and every control sits where the manual draws it. All drawing is original:
+/// no vendor artwork is bundled.
 struct ControllerDiagram: View {
     var pressed: Set<ControllerKey> = []
     var selected: ControllerKey?
@@ -20,9 +19,11 @@ struct ControllerDiagram: View {
 
     /// Design space; everything is laid out in these units and scaled.
     static let width: CGFloat = 640
-    static var frontRect: CGRect { CGRect(x: 20, y: 46, width: 600, height: 442) }
-    static var backRect: CGRect { CGRect(x: 160, y: 548, width: 320, height: 236) }
-    private var height: CGFloat { showsBack ? 800 : 500 }
+    /// The front silhouette's box, in the manual drawing's proportions (1234 × 820).
+    static var frontRect: CGRect { CGRect(x: 20, y: 14, width: 600, height: 600 * 820 / 1234) }
+    /// The back silhouette's box (1320 × 870 in the manual).
+    static var backRect: CGRect { CGRect(x: 140, y: 472, width: 360, height: 360 * 870 / 1320) }
+    private var height: CGFloat { showsBack ? 724 : 428 }
 
     var body: some View {
         GeometryReader { geo in
@@ -38,14 +39,14 @@ struct ControllerDiagram: View {
 
     private var canvas: some View {
         ZStack(alignment: .topLeading) {
-            shoulders
             frontBody
+            frontShoulders
             frontControls
             if showsBack {
                 Text("BACK  ·  seen through the controller, so left stays left")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .position(x: Self.width / 2, y: 505)
+                    .position(x: Self.width / 2, y: Self.backRect.minY - 18)
                 backBody
                 backControls
             }
@@ -54,7 +55,7 @@ struct ControllerDiagram: View {
 
     // MARK: Coordinates
 
-    /// A point on the front, in fractions of the body's bounding box.
+    /// A point on the front, in fractions of the silhouette's box.
     private func f(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
         CGPoint(x: Self.frontRect.minX + x * Self.frontRect.width, y: Self.frontRect.minY + y * Self.frontRect.height)
     }
@@ -66,6 +67,7 @@ struct ControllerDiagram: View {
     // MARK: Colours
 
     private static let shell = LinearGradient(colors: [Color(white: 0.2), Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
+    private static let part = LinearGradient(colors: [Color(white: 0.25), Color(white: 0.11)], startPoint: .top, endPoint: .bottom)
     private static let gold = LinearGradient(colors: [Color(red: 0.84, green: 0.70, blue: 0.45), Color(red: 0.55, green: 0.42, blue: 0.22)],
                                              startPoint: .topLeading, endPoint: .bottomTrailing)
     private static let goldLine = Color(red: 0.82, green: 0.66, blue: 0.36)
@@ -97,23 +99,12 @@ struct ControllerDiagram: View {
 
     // MARK: Front
 
-    private var shoulders: some View {
-        ZStack(alignment: .topLeading) {
-            triggerKey(.lt, center: f(0.205, -0.05), value: leftTrigger, mirrored: false)
-            triggerKey(.rt, center: f(0.795, -0.05), value: rightTrigger, mirrored: true)
-            bumperKey(.lb, center: f(0.2, 0.0), width: 118, mirrored: false, rotation: -9)
-            bumperKey(.rb, center: f(0.8, 0.0), width: 118, mirrored: true, rotation: 9)
-            pillKey(.lm, center: f(0.345, -0.018), size: CGSize(width: 36, height: 16))
-            pillKey(.rm, center: f(0.655, -0.018), size: CGSize(width: 36, height: 16))
-        }
-    }
-
     private var frontBody: some View {
         ZStack(alignment: .topLeading) {
-            BodyOutline()
+            TracedShape(points: VaderOutline.front)
                 .fill(Self.shell)
                 .shadow(color: .black.opacity(0.35), radius: 8, y: 4)
-                .overlay(BodyOutline().stroke(Color(white: 0.32), lineWidth: 1))
+                .overlay(TracedShape(points: VaderOutline.front).stroke(Color(white: 0.32), lineWidth: 1))
                 .frame(width: Self.frontRect.width, height: Self.frontRect.height)
                 .offset(x: Self.frontRect.minX, y: Self.frontRect.minY)
             // The gold trim along the inner bottom edge.
@@ -121,72 +112,99 @@ struct ControllerDiagram: View {
                 .stroke(Self.goldLine, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
                 .frame(width: Self.frontRect.width, height: Self.frontRect.height)
                 .offset(x: Self.frontRect.minX, y: Self.frontRect.minY)
-            // V panel with its speckled finish.
+            // V panel with its speckled finish, from the top edge down to a point below the logo.
             VPanelShape()
                 .fill(Color(white: 0.15))
-                .overlay(VPanelShape().stroke(Color(white: 0.28), lineWidth: 1))
+                .overlay(VPanelShape().stroke(Color(white: 0.3), lineWidth: 1))
                 .overlay(Speckles().fill(Self.goldLine.opacity(0.8)).clipShape(VPanelShape()))
-                .frame(width: 0.33 * Self.frontRect.width, height: 0.2 * Self.frontRect.height)
-                .position(x: f(0.5, 0.115).x, y: f(0.5, 0.115).y)
+                .frame(width: 0.348 * Self.frontRect.width, height: 0.271 * Self.frontRect.height)
+                .position(f(0.5, 0.0525 + 0.271 / 2))
             Text("VADER 5 PRO")
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(Color(white: 0.75))
-                .rotationEffect(.degrees(-62))
-                .position(f(0.885, 0.70))
+                .rotationEffect(.degrees(72))
+                .position(f(0.93, 0.70))
+        }
+    }
+
+    private var frontShoulders: some View {
+        let r = Self.frontRect
+        return ZStack(alignment: .topLeading) {
+            outlineKey(.lt, VaderOutline.frontTriggerTip, mirrored: false, in: r, level: leftTrigger,
+                       label: f(0.223, 0.028), size: 8, hitPadding: 10)
+            outlineKey(.rt, VaderOutline.frontTriggerTip, mirrored: true, in: r, level: rightTrigger,
+                       label: f(0.777, 0.028), size: 8, hitPadding: 10)
+            outlineKey(.lb, VaderOutline.frontBumper, mirrored: false, in: r, label: f(0.262, 0.058), size: 10, rotation: -10)
+            outlineKey(.rb, VaderOutline.frontBumper, mirrored: true, in: r, label: f(0.738, 0.058), size: 10, rotation: 10)
+            pillKey(.lm, center: f(0.445, 0.025), size: CGSize(width: 28, height: 12))
+            pillKey(.rm, center: f(0.555, 0.025), size: CGSize(width: 28, height: 12))
         }
     }
 
     private var frontControls: some View {
         ZStack(alignment: .topLeading) {
-            homeKey(center: f(0.5, 0.085))
-            smallKey(.select, center: f(0.42, 0.178), rotation: -40, symbol: "rectangle.on.rectangle")
-            smallKey(.start, center: f(0.58, 0.178), rotation: 40, symbol: "line.3.horizontal")
-            stickKey(.l3, center: f(0.238, 0.21), value: leftStick)
-            stickKey(.r3, center: f(0.65, 0.42), value: rightStick)
-            dpad(center: f(0.397, 0.40))
-            faceKey(.y, center: f(0.746, 0.14))
-            faceKey(.x, center: f(0.694, 0.215))
-            faceKey(.b, center: f(0.818, 0.222))
-            faceKey(.a, center: f(0.767, 0.297))
-            roundKey(.z, center: f(0.868, 0.374), radius: 15)
-            roundKey(.c, center: f(0.82, 0.435), radius: 15)
+            homeKey(center: f(0.501, 0.174))
+            smallKey(.select, center: f(0.419, 0.278), size: CGSize(width: 44, height: 19), rotation: 46,
+                     symbol: "rectangle.on.rectangle")
+            smallKey(.start, center: f(0.581, 0.278), size: CGSize(width: 44, height: 19), rotation: -46,
+                     symbol: "line.3.horizontal")
+            stickKey(.l3, center: f(0.2467, 0.3093), value: leftStick)
+            stickKey(.r3, center: f(0.6245, 0.5416), value: rightStick)
+            dpad(center: f(0.3706, 0.5390))
+            faceKey(.y, center: f(0.7510, 0.2057))
+            faceKey(.x, center: f(0.6847, 0.3072))
+            faceKey(.b, center: f(0.8185, 0.3080))
+            faceKey(.a, center: f(0.7509, 0.4020))
+            roundKey(.z, center: f(0.8532, 0.4771), radius: 16)
+            roundKey(.c, center: f(0.7877, 0.5598), radius: 16)
         }
     }
 
     // MARK: Back
 
     private var backBody: some View {
-        ZStack(alignment: .topLeading) {
-            triggerKey(.lt, center: b(0.2, -0.01), value: leftTrigger, mirrored: false, scale: 0.55)
-            triggerKey(.rt, center: b(0.8, -0.01), value: rightTrigger, mirrored: true, scale: 0.55)
-            BodyOutline()
+        let r = Self.backRect
+        return ZStack(alignment: .topLeading) {
+            TracedShape(points: VaderOutline.back)
                 .fill(LinearGradient(colors: [Color(white: 0.17), Color(white: 0.09)], startPoint: .top, endPoint: .bottom))
-                .overlay(BodyOutline().stroke(Color(white: 0.32), lineWidth: 1))
-                .frame(width: Self.backRect.width, height: Self.backRect.height)
-                .offset(x: Self.backRect.minX, y: Self.backRect.minY)
-            RoundedRectangle(cornerRadius: 2).fill(Color.black).frame(width: 26, height: 7).position(b(0.5, 0.02))
-            RoundedRectangle(cornerRadius: 6).stroke(Color(white: 0.3), lineWidth: 1)
-                .frame(width: 0.17 * Self.backRect.width, height: 0.15 * Self.backRect.height)
-                .position(b(0.5, 0.15))
-            slider(center: b(0.33, 0.27), vertical: true, help: "Left trigger: click or travel")
-            slider(center: b(0.67, 0.27), vertical: true, help: "Right trigger: click or travel")
-            slider(center: b(0.5, 0.36), vertical: false, help: "Mode: receiver/cable · Bluetooth · Switch")
+                .overlay(TracedShape(points: VaderOutline.back).stroke(Color(white: 0.32), lineWidth: 1))
+                .frame(width: r.width, height: r.height)
+                .offset(x: r.minX, y: r.minY)
+            TracedShape(points: VaderOutline.backPlate)
+                .fill(Color.white.opacity(0.025))
+                .overlay(TracedShape(points: VaderOutline.backPlate).stroke(Color(white: 0.27), lineWidth: 1))
+                .frame(width: r.width, height: r.height)
+                .offset(x: r.minX, y: r.minY)
+            // Holder slot with its latch.
+            RoundedRectangle(cornerRadius: 4).stroke(Color(white: 0.3), lineWidth: 1)
+                .frame(width: 0.217 * r.width, height: 0.209 * r.height)
+                .position(b(0.5, 0.167))
+            RoundedRectangle(cornerRadius: 2).fill(Color(white: 0.3)).frame(width: 14, height: 4).position(b(0.5, 0.255))
+            slider(center: b(0.328, 0.342), vertical: true, help: "Left trigger switch: click or travel")
+            slider(center: b(0.672, 0.342), vertical: true, help: "Right trigger switch: click or travel")
+            slider(center: b(0.5, 0.539), vertical: false, help: "Mode switch: receiver/cable · Bluetooth · Switch")
             ForEach(0..<3, id: \.self) { i in
                 Circle().fill(Self.goldLine.opacity(0.9)).frame(width: 5, height: 5)
-                    .position(b(0.47 + CGFloat(i) * 0.03, 0.47))
+                    .position(b(0.468 + CGFloat(i) * 0.032, 0.643))
             }
         }
     }
 
     private var backControls: some View {
-        ZStack(alignment: .topLeading) {
-            paddleKey(.m1, center: b(0.30, 0.42), size: CGSize(width: 46, height: 38), lower: false, mirrored: false)
-            paddleKey(.m2, center: b(0.70, 0.42), size: CGSize(width: 46, height: 38), lower: false, mirrored: true)
-            paddleKey(.m3, center: b(0.25, 0.62), size: CGSize(width: 62, height: 32), lower: true, mirrored: false)
-            paddleKey(.m4, center: b(0.75, 0.62), size: CGSize(width: 62, height: 32), lower: true, mirrored: true)
-            smallKey(.fn, center: b(0.44, 0.58), rotation: 0, symbol: "circle")
-            smallKey(.turbo, center: b(0.56, 0.58), rotation: 0, symbol: "forward.end")
+        let r = Self.backRect
+        return ZStack(alignment: .topLeading) {
+            outlineKey(.lt, VaderOutline.backTrigger, mirrored: false, in: r, level: leftTrigger, label: b(0.229, 0.066), size: 9)
+            outlineKey(.rt, VaderOutline.backTrigger, mirrored: true, in: r, level: rightTrigger, label: b(0.771, 0.066), size: 9)
+            outlineKey(.lb, VaderOutline.backBumper, mirrored: false, in: r, label: b(0.343, 0.041), size: 8)
+            outlineKey(.rb, VaderOutline.backBumper, mirrored: true, in: r, label: b(0.657, 0.041), size: 8)
+            outlineKey(.m1, VaderOutline.upperPaddle, mirrored: false, in: r, label: b(0.283, 0.516), size: 11)
+            outlineKey(.m2, VaderOutline.upperPaddle, mirrored: true, in: r, label: b(0.717, 0.516), size: 11)
+            outlineKey(.m3, VaderOutline.lowerPaddle, mirrored: false, in: r, label: b(0.301, 0.687), size: 11)
+            outlineKey(.m4, VaderOutline.lowerPaddle, mirrored: true, in: r, label: b(0.699, 0.687), size: 11)
+            // Seen through the controller, Turbo is on the left and Fn on the right.
+            smallKey(.turbo, center: b(0.448, 0.741), size: CGSize(width: 24, height: 11), rotation: 0, symbol: "forward.end")
+            smallKey(.fn, center: b(0.552, 0.741), size: CGSize(width: 24, height: 11), rotation: 0, symbol: "circle")
         }
     }
 
@@ -198,8 +216,48 @@ struct ControllerDiagram: View {
         }
     }
 
+    /// A part drawn from a traced outline that fills `rect`; `level` fills it from the bottom (triggers).
+    private func outlineKey(_ key: ControllerKey, _ points: [(CGFloat, CGFloat)], mirrored: Bool, in rect: CGRect,
+                            level: Double? = nil, label at: CGPoint, size: CGFloat, rotation: Double = 0,
+                            hitPadding: CGFloat = 0) -> some View {
+        let shape = TracedShape(points: points, mirrored: mirrored)
+        let ys = points.map(\.1), top = ys.min() ?? 0, bottom = ys.max() ?? 1
+        let filled = CGFloat(max(0, min(1, level ?? 0)))
+        let xs = points.map { mirrored ? 1 - $0.0 : $0.0 }
+        let box = CGRect(x: rect.minX + (xs.min() ?? 0) * rect.width, y: rect.minY + top * rect.height,
+                         width: ((xs.max() ?? 1) - (xs.min() ?? 0)) * rect.width, height: (bottom - top) * rect.height)
+        return ZStack(alignment: .topLeading) {
+            shape.fill(pressed.contains(key) ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Self.part))
+                .frame(width: rect.width, height: rect.height)
+            if filled > 0 {
+                shape.fill(Color.accentColor.opacity(0.9))
+                    .frame(width: rect.width, height: rect.height)
+                    .mask(alignment: .topLeading) {
+                        Rectangle()
+                            .frame(width: rect.width, height: (bottom - top) * filled * rect.height)
+                            .offset(y: (bottom - (bottom - top) * filled) * rect.height)
+                    }
+            }
+            shape.stroke(ring(key) ?? Self.rim, lineWidth: ring(key) == nil ? 1 : 2.5)
+                .frame(width: rect.width, height: rect.height)
+            Text(key.short)
+                .font(.system(size: size, weight: .bold, design: .rounded))
+                .foregroundStyle(pressed.contains(key) || filled > 0.5 ? .white : Color(white: 0.8))
+                .rotationEffect(.degrees(rotation))
+                .position(x: at.x - rect.minX, y: at.y - rect.minY)
+        }
+        .frame(width: rect.width, height: rect.height, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .offset(x: rect.minX, y: rect.minY)
+        .overlay(alignment: .topLeading) {
+            // Hit area: the part itself, grown for the small trigger tips.
+            tappable(key, Color.clear.frame(width: box.width + 2 * hitPadding, height: box.height + 2 * hitPadding))
+                .offset(x: box.minX - hitPadding, y: box.minY - hitPadding)
+        }
+    }
+
     private func faceKey(_ key: ControllerKey, center: CGPoint) -> some View {
-        let r: CGFloat = 19
+        let r: CGFloat = 18.5
         return tappable(key, ZStack {
             Circle().fill(Color.black.opacity(0.5)).offset(y: 1.5)
             Circle().fill(pressed.contains(key) ? AnyShapeStyle(Color.accentColor)
@@ -227,14 +285,14 @@ struct ControllerDiagram: View {
         .position(center)
     }
 
-    private func smallKey(_ key: ControllerKey, center: CGPoint, rotation: Double, symbol: String) -> some View {
+    private func smallKey(_ key: ControllerKey, center: CGPoint, size: CGSize, rotation: Double, symbol: String) -> some View {
         tappable(key, ZStack {
             Capsule().fill(base(key))
             Capsule().stroke(ring(key) ?? Self.rim, lineWidth: ring(key) == nil ? 1 : 2.5)
-            Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(label(key))
+            Image(systemName: symbol).font(.system(size: min(9, size.height * 0.5), weight: .bold)).foregroundStyle(label(key))
                 .rotationEffect(.degrees(-rotation))
         }
-        .frame(width: 30, height: 15)
+        .frame(width: size.width, height: size.height)
         .rotationEffect(.degrees(rotation)))
         .position(center)
     }
@@ -242,10 +300,10 @@ struct ControllerDiagram: View {
     private func homeKey(center: CGPoint) -> some View {
         tappable(.home, ZStack {
             if pressed.contains(.home) { Circle().fill(Color.accentColor.opacity(0.85)) }
-            LogoMark().fill(pressed.contains(.home) ? .white : Color(white: 0.95)).frame(width: 30, height: 24)
+            LogoMark().fill(pressed.contains(.home) ? .white : Color(white: 0.95)).frame(width: 44, height: 38)
             selection(.home)
         }
-        .frame(width: 40, height: 40))
+        .frame(width: 54, height: 54))
         .position(center)
     }
 
@@ -253,55 +311,31 @@ struct ControllerDiagram: View {
         tappable(key, ZStack {
             Capsule().fill(base(key))
             Capsule().stroke(ring(key) ?? Self.rim, lineWidth: ring(key) == nil ? 1 : 2.5)
-            Text(key.short).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(label(key))
+            Text(key.short).font(.system(size: 8, weight: .bold, design: .rounded)).foregroundStyle(label(key))
         }
         .frame(width: size.width, height: size.height))
         .position(center)
     }
 
-    private func bumperKey(_ key: ControllerKey, center: CGPoint, width: CGFloat, mirrored: Bool, rotation: Double = 0) -> some View {
-        tappable(key, ZStack {
-            BumperShape().fill(pressed.contains(key) ? AnyShapeStyle(Color.accentColor)
-                                : AnyShapeStyle(LinearGradient(colors: [Color(white: 0.24), Color(white: 0.1)],
-                                                               startPoint: .top, endPoint: .bottom)))
-                .overlay(BumperShape().stroke(ring(key) ?? Self.rim, lineWidth: ring(key) == nil ? 1 : 2.5))
-                .scaleEffect(x: mirrored ? -1 : 1)
-            Text(key.short).font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(label(key)).offset(y: -5)
-        }
-        .frame(width: width, height: 26)
-        .rotationEffect(.degrees(rotation)))
-        .position(center)
-    }
-
-    private func triggerKey(_ key: ControllerKey, center: CGPoint, value: Double, mirrored: Bool, scale: CGFloat = 1) -> some View {
-        let size = CGSize(width: 86 * scale, height: 40 * scale)
-        return tappable(key, ZStack {
-            ZStack(alignment: .bottom) {
-                TriggerShape().fill(LinearGradient(colors: [Color(white: 0.22), Color(white: 0.08)], startPoint: .top, endPoint: .bottom))
-                TriggerShape().fill(Color.accentColor.opacity(0.9))
-                    .mask(alignment: .bottom) { Rectangle().frame(height: size.height * max(0, min(1, value))) }
-                TriggerShape().stroke(ring(key) ?? Self.rim, lineWidth: ring(key) == nil ? 1 : 2.5)
-            }
-            .scaleEffect(x: mirrored ? -1 : 1)
-            Text(key.short).font(.system(size: 10 * max(scale, 0.8), weight: .bold, design: .rounded))
-                .foregroundStyle(pressed.contains(key) || value > 0.5 ? .white : Color(white: 0.8))
-        }
-        .frame(width: size.width, height: size.height))
-        .position(center)
-    }
-
+    /// A stick under its gold tension dial: the dial is 17.5 % of the body's width, the cap 40 % of the dial.
     private func stickKey(_ key: ControllerKey, center: CGPoint, value: SIMD2<Double>) -> some View {
-        let travel: CGFloat = 11
+        let d: CGFloat = 105, r = d / 2, travel: CGFloat = 12
         return tappable(key, ZStack {
-            Circle().fill(Color.black.opacity(0.55))
-            // Gold tension dial with knurling.
-            Circle().stroke(Self.gold, lineWidth: 11).padding(6)
-            ForEach(0..<48, id: \.self) { i in
-                Rectangle().fill(Color.black.opacity(0.35)).frame(width: 1, height: 9)
-                    .offset(y: -(58 / 2 - 2))
-                    .rotationEffect(.degrees(Double(i) * 7.5))
+            // Dark bezel with the dial's scale marks.
+            Circle().fill(Color.black.opacity(0.6))
+            ForEach(0..<12, id: \.self) { i in
+                Rectangle().fill(Color(white: 0.55)).frame(width: 1.2, height: 0.09 * r)
+                    .offset(y: -0.93 * r)
+                    .rotationEffect(.degrees(Double(i) * 30))
             }
-            Circle().fill(Color(white: 0.05)).padding(17)
+            // Knurled gold dial.
+            Circle().stroke(Self.gold, lineWidth: 0.3 * r).padding(0.15 * r + 0.15 * r)
+            ForEach(0..<60, id: \.self) { i in
+                Rectangle().fill(Color.black.opacity(0.3)).frame(width: 1, height: 0.26 * r)
+                    .offset(y: -0.71 * r)
+                    .rotationEffect(.degrees(Double(i) * 6))
+            }
+            Circle().fill(Color(white: 0.05)).padding(0.44 * r)
             ZStack {
                 Circle().fill(pressed.contains(key) ? AnyShapeStyle(Color.accentColor)
                               : AnyShapeStyle(RadialGradient(colors: [Color(white: 0.2), Color(white: 0.07)],
@@ -311,73 +345,51 @@ struct ControllerDiagram: View {
                 Text(key.short).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(label(key).opacity(0.8))
                 selection(key)
             }
-            .frame(width: 42, height: 42)
+            .frame(width: 0.8 * r, height: 0.8 * r)
             .offset(x: CGFloat(value.x) * travel, y: CGFloat(-value.y) * travel)
         }
-        .frame(width: 80, height: 80))
+        .frame(width: d, height: d))
         .position(center)
     }
 
+    /// The rotational D-pad: a rounded square turned 45°, with a plus cut into it.
     private func dpad(center: CGPoint) -> some View {
-        ZStack {
+        let s: CGFloat = 103
+        return ZStack {
             DpadShape()
                 .fill(LinearGradient(colors: [Color(white: 0.17), Color(white: 0.04)], startPoint: .top, endPoint: .bottom))
                 .overlay(DpadShape().stroke(Self.rim, lineWidth: 1))
                 .shadow(color: .black.opacity(0.5), radius: 2, y: 2)
-                .frame(width: 92, height: 92)
+            CrossShape().stroke(Color.black.opacity(0.7), lineWidth: 1.5).clipShape(DpadShape())
             ForEach([(ControllerKey.up, 0.0), (.right, 90.0), (.down, 180.0), (.left, 270.0)], id: \.0) { key, angle in
                 dpadArm(key, angle: angle)
             }
         }
-        .frame(width: 92, height: 92)
+        .frame(width: s, height: s)
         .position(center)
     }
 
-    /// One tappable arm, drawn pointing up in a dpad-sized box and rotated into place.
+    /// One tappable arm, drawn pointing up in a D-pad-sized box and rotated into place.
     private func dpadArm(_ key: ControllerKey, angle: Double) -> some View {
         ZStack {
-            tappable(key, ZStack {
-                RoundedRectangle(cornerRadius: 6).fill(pressed.contains(key) ? Color.accentColor : .clear)
-                if let c = ring(key) { RoundedRectangle(cornerRadius: 6).stroke(c, lineWidth: 2.5) }
-                Image(systemName: "arrowtriangle.up.fill").font(.system(size: 7))
-                    .foregroundStyle(pressed.contains(key) ? .white : Color(white: 0.4))
-            }
-            .frame(width: 28, height: 30))
-            .position(x: 46, y: 18)
+            ArmShape().fill(pressed.contains(key) ? Color.accentColor : .clear).clipShape(DpadShape())
+            if let c = ring(key) { ArmShape().stroke(c, lineWidth: 2.5).clipShape(DpadShape()) }
+            Image(systemName: "arrowtriangle.up.fill").font(.system(size: 7))
+                .foregroundStyle(pressed.contains(key) ? .white : Color(white: 0.4))
+                .position(x: 51.5, y: 16)
+            tappable(key, Color.clear.frame(width: 34, height: 36)).position(x: 51.5, y: 18)
         }
-        .frame(width: 92, height: 92)
+        .frame(width: 103, height: 103)
         .rotationEffect(.degrees(angle))
-    }
-
-    private func paddleKey(_ key: ControllerKey, center: CGPoint, size: CGSize, lower: Bool, mirrored: Bool) -> some View {
-        tappable(key, ZStack {
-            Group {
-                if lower {
-                    LowerPaddle().fill(base(key) == .accentColor ? AnyShapeStyle(Color.accentColor)
-                                        : AnyShapeStyle(LinearGradient(colors: [Color(white: 0.24), Color(white: 0.1)],
-                                                                       startPoint: .top, endPoint: .bottom)))
-                        .overlay(LowerPaddle().stroke(ring(key) ?? Self.rim, lineWidth: ring(key) == nil ? 1 : 2.5))
-                } else {
-                    UpperPaddle().fill(base(key) == .accentColor ? AnyShapeStyle(Color.accentColor)
-                                        : AnyShapeStyle(LinearGradient(colors: [Color(white: 0.24), Color(white: 0.1)],
-                                                                       startPoint: .top, endPoint: .bottom)))
-                        .overlay(UpperPaddle().stroke(ring(key) ?? Self.rim, lineWidth: ring(key) == nil ? 1 : 2.5))
-                }
-            }
-            .scaleEffect(x: mirrored ? -1 : 1)
-            Text(key.short).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(label(key))
-        }
-        .frame(width: size.width, height: size.height))
-        .position(center)
     }
 
     private func slider(center: CGPoint, vertical: Bool, help: String) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 4).fill(Color.black)
-            RoundedRectangle(cornerRadius: 3).fill(Color(white: 0.45))
-                .frame(width: vertical ? 6 : 10, height: vertical ? 9 : 6)
+            RoundedRectangle(cornerRadius: 3).fill(Color.black)
+            RoundedRectangle(cornerRadius: 2).fill(Color(white: 0.45))
+                .frame(width: vertical ? 5 : 9, height: vertical ? 9 : 5)
         }
-        .frame(width: vertical ? 11 : 34, height: vertical ? 24 : 11)
+        .frame(width: vertical ? 9 : 24, height: vertical ? 23 : 11)
         .help(help)
         .position(center)
     }
@@ -385,43 +397,24 @@ struct ControllerDiagram: View {
 
 // MARK: - Shapes
 
-/// The controller's outline, traced from a product photo, smoothed with a Catmull-Rom spline.
-struct BodyOutline: Shape {
-    static let points: [(CGFloat, CGFloat)] = [
-        (0.4991, 0.6678), (0.4785, 0.6683), (0.4355, 0.6598), (0.4045, 0.6604), (0.3528, 0.6673), (0.3220, 0.6826),
-        (0.3093, 0.6956), (0.2986, 0.7116), (0.2707, 0.7696), (0.2425, 0.7944), (0.2311, 0.8079), (0.1299, 0.9731),
-        (0.1152, 0.9895), (0.0998, 0.9988), (0.0843, 1.0000), (0.0637, 0.9919), (0.0413, 0.9721), (0.0279, 0.9539),
-        (0.0163, 0.9314), (0.0071, 0.9035), (0.0013, 0.8706), (0.0000, 0.8401), (0.0036, 0.7463), (0.0190, 0.6009),
-        (0.0491, 0.4414), (0.0733, 0.3358), (0.1126, 0.1875), (0.1298, 0.1388), (0.1626, 0.0722), (0.1859, 0.0457),
-        (0.2134, 0.0270), (0.2444, 0.0131), (0.2919, 0.0000), (0.3150, 0.0001), (0.3614, 0.0164), (0.4991, 0.0256),
-        (0.5009, 0.0256), (0.6386, 0.0164), (0.6850, 0.0001), (0.7081, 0.0000), (0.7556, 0.0131), (0.7866, 0.0270),
-        (0.8141, 0.0457), (0.8374, 0.0722), (0.8702, 0.1388), (0.8874, 0.1875), (0.9267, 0.3358), (0.9509, 0.4414),
-        (0.9810, 0.6009), (0.9964, 0.7463), (1.0000, 0.8401), (0.9987, 0.8706), (0.9929, 0.9035), (0.9837, 0.9314),
-        (0.9721, 0.9539), (0.9587, 0.9721), (0.9363, 0.9919), (0.9157, 1.0000), (0.9002, 0.9988), (0.8848, 0.9895),
-        (0.8701, 0.9731), (0.7689, 0.8079), (0.7575, 0.7944), (0.7293, 0.7696), (0.7014, 0.7116), (0.6907, 0.6956),
-        (0.6780, 0.6826), (0.6472, 0.6673), (0.5955, 0.6604), (0.5645, 0.6598), (0.5215, 0.6683), (0.5009, 0.6678)
-    ]
+/// A closed outline in fractions of its frame, optionally mirrored left-right, smoothed with a Catmull-Rom spline.
+struct TracedShape: Shape {
+    var points: [(CGFloat, CGFloat)]
+    var mirrored = false
 
     func path(in r: CGRect) -> Path {
-        let p = Self.points.map { CGPoint(x: r.minX + $0.0 * r.width, y: r.minY + $0.1 * r.height) }
-        return CatmullRom.closed(p)
+        CatmullRom.closed(points.map {
+            CGPoint(x: r.minX + (mirrored ? 1 - $0.0 : $0.0) * r.width, y: r.minY + $0.1 * r.height)
+        })
     }
 }
 
 /// The gold line that follows the body's inner bottom edge, a little inside it.
 struct InnerTrim: Shape {
     func path(in r: CGRect) -> Path {
-        let pts = BodyOutline.points.filter { $0.1 > 0.62 && $0.1 < 0.80 && $0.0 > 0.27 && $0.0 < 0.73 }
+        let pts = VaderOutline.front.filter { $0.1 > 0.77 && $0.1 < 0.9 && $0.0 > 0.19 && $0.0 < 0.81 }
             .sorted { $0.0 < $1.0 }
-        guard pts.count > 2 else { return Path() }
-        // The traced inner edge has a notch at the centre; a wide average gives the trim an even
-        // sweep, and taking the higher of the two keeps the line on the body.
-        let smooth = pts.indices.map { i -> (CGFloat, CGFloat) in
-            let near = pts[max(0, i - 3)...min(pts.count - 1, i + 3)]
-            return (pts[i].0, min(pts[i].1, near.map(\.1).reduce(0, +) / CGFloat(near.count)))
-        }
-        let p = smooth.map { CGPoint(x: r.minX + $0.0 * r.width, y: r.minY + ($0.1 - 0.018) * r.height) }
-        return CatmullRom.open(p)
+        return CatmullRom.open(pts.map { CGPoint(x: r.minX + $0.0 * r.width, y: r.minY + ($0.1 - 0.022) * r.height) })
     }
 }
 
@@ -452,17 +445,17 @@ enum CatmullRom {
     }
 }
 
-/// The V-shaped panel around the logo.
+/// The V-shaped panel around the logo: a wide top edge narrowing to a rounded point.
 struct VPanelShape: Shape {
     func path(in r: CGRect) -> Path {
         var p = Path()
-        p.move(to: CGPoint(x: r.minX + 10, y: r.minY))
-        p.addLine(to: CGPoint(x: r.maxX - 10, y: r.minY))
-        p.addQuadCurve(to: CGPoint(x: r.maxX - 6, y: r.minY + 9), control: CGPoint(x: r.maxX, y: r.minY))
-        p.addLine(to: CGPoint(x: r.midX + 10, y: r.maxY - 6))
-        p.addQuadCurve(to: CGPoint(x: r.midX - 10, y: r.maxY - 6), control: CGPoint(x: r.midX, y: r.maxY + 3))
-        p.addLine(to: CGPoint(x: r.minX + 6, y: r.minY + 9))
-        p.addQuadCurve(to: CGPoint(x: r.minX + 10, y: r.minY), control: CGPoint(x: r.minX, y: r.minY))
+        p.move(to: CGPoint(x: r.minX + 8, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX - 8, y: r.minY))
+        p.addQuadCurve(to: CGPoint(x: r.maxX - 5, y: r.minY + 8), control: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.midX + 9, y: r.maxY - 7))
+        p.addQuadCurve(to: CGPoint(x: r.midX - 9, y: r.maxY - 7), control: CGPoint(x: r.midX, y: r.maxY + 2))
+        p.addLine(to: CGPoint(x: r.minX + 5, y: r.minY + 8))
+        p.addQuadCurve(to: CGPoint(x: r.minX + 8, y: r.minY), control: CGPoint(x: r.minX, y: r.minY))
         p.closeSubpath()
         return p
     }
@@ -500,77 +493,39 @@ struct LogoMark: Shape {
     }
 }
 
-/// A plus-shaped D-pad with softly rounded ends.
+/// The D-pad's body: a square with large rounded corners, turned 45° and filling its frame corner to corner.
 struct DpadShape: Shape {
     func path(in r: CGRect) -> Path {
-        let arm = r.width * 0.42, c = CGPoint(x: r.midX, y: r.midY)
-        var p = Path()
-        p.addRoundedRect(in: CGRect(x: c.x - arm / 2, y: r.minY, width: arm, height: r.height), cornerSize: CGSize(width: 13, height: 13))
-        p.addRoundedRect(in: CGRect(x: r.minX, y: c.y - arm / 2, width: r.width, height: arm), cornerSize: CGSize(width: 13, height: 13))
-        return p
+        // With corner radius 0.28 × side, the turned square's corner-to-corner extent is 1.1823 × side.
+        let side = r.width / 1.1823
+        let square = CGRect(x: r.midX - side / 2, y: r.midY - side / 2, width: side, height: side)
+        let p = Path(roundedRect: square, cornerRadius: 0.28 * side)
+        let turn = CGAffineTransform(translationX: r.midX, y: r.midY).rotated(by: .pi / 4).translatedBy(x: -r.midX, y: -r.midY)
+        return p.applying(turn)
     }
 }
 
-struct TriggerShape: Shape {
+/// The plus cut into the D-pad, as an outline spanning the whole frame.
+struct CrossShape: Shape {
     func path(in r: CGRect) -> Path {
+        let a = r.width * 0.165   // half the arm width
+        let c = CGPoint(x: r.midX, y: r.midY)
         var p = Path()
-        p.move(to: CGPoint(x: r.minX + r.width * 0.06, y: r.maxY))
-        p.addCurve(to: CGPoint(x: r.minX + r.width * 0.5, y: r.minY),
-                   control1: CGPoint(x: r.minX, y: r.minY + r.height * 0.35), control2: CGPoint(x: r.minX + r.width * 0.2, y: r.minY))
-        p.addCurve(to: CGPoint(x: r.maxX - r.width * 0.06, y: r.maxY),
-                   control1: CGPoint(x: r.maxX - r.width * 0.15, y: r.minY), control2: CGPoint(x: r.maxX, y: r.minY + r.height * 0.5))
+        p.addLines([
+            CGPoint(x: c.x - a, y: r.minY), CGPoint(x: c.x + a, y: r.minY), CGPoint(x: c.x + a, y: c.y - a),
+            CGPoint(x: r.maxX, y: c.y - a), CGPoint(x: r.maxX, y: c.y + a), CGPoint(x: c.x + a, y: c.y + a),
+            CGPoint(x: c.x + a, y: r.maxY), CGPoint(x: c.x - a, y: r.maxY), CGPoint(x: c.x - a, y: c.y + a),
+            CGPoint(x: r.minX, y: c.y + a), CGPoint(x: r.minX, y: c.y - a), CGPoint(x: c.x - a, y: c.y - a),
+        ])
         p.closeSubpath()
         return p
     }
 }
 
-/// A bumper that follows the curve of the top edge.
-struct BumperShape: Shape {
+/// The upper arm of the plus, from the top edge to the centre square.
+struct ArmShape: Shape {
     func path(in r: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: r.minX, y: r.maxY))
-        p.addCurve(to: CGPoint(x: r.maxX, y: r.minY + r.height * 0.15),
-                   control1: CGPoint(x: r.minX + r.width * 0.1, y: r.minY), control2: CGPoint(x: r.maxX - r.width * 0.3, y: r.minY))
-        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - r.height * 0.15))
-        p.addCurve(to: CGPoint(x: r.minX + r.width * 0.12, y: r.maxY),
-                   control1: CGPoint(x: r.maxX - r.width * 0.3, y: r.maxY - r.height * 0.4), control2: CGPoint(x: r.minX + r.width * 0.3, y: r.maxY))
-        p.closeSubpath()
-        return p
-    }
-}
-
-/// The smaller upper back buttons.
-struct UpperPaddle: Shape {
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: r.minX + r.width * 0.15, y: r.minY + r.height * 0.1))
-        p.addCurve(to: CGPoint(x: r.maxX, y: r.minY + r.height * 0.45),
-                   control1: CGPoint(x: r.minX + r.width * 0.6, y: r.minY - r.height * 0.05),
-                   control2: CGPoint(x: r.maxX, y: r.minY + r.height * 0.15))
-        p.addCurve(to: CGPoint(x: r.minX + r.width * 0.35, y: r.maxY),
-                   control1: CGPoint(x: r.maxX, y: r.maxY - r.height * 0.1),
-                   control2: CGPoint(x: r.minX + r.width * 0.6, y: r.maxY))
-        p.addCurve(to: CGPoint(x: r.minX + r.width * 0.15, y: r.minY + r.height * 0.1),
-                   control1: CGPoint(x: r.minX, y: r.maxY), control2: CGPoint(x: r.minX - r.width * 0.05, y: r.minY + r.height * 0.3))
-        p.closeSubpath()
-        return p
-    }
-}
-
-/// The larger, detachable lower paddles.
-struct LowerPaddle: Shape {
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: r.minX + r.width * 0.05, y: r.minY + r.height * 0.35))
-        p.addCurve(to: CGPoint(x: r.maxX, y: r.minY + r.height * 0.15),
-                   control1: CGPoint(x: r.minX + r.width * 0.3, y: r.minY), control2: CGPoint(x: r.maxX - r.width * 0.2, y: r.minY))
-        p.addLine(to: CGPoint(x: r.maxX - r.width * 0.05, y: r.maxY - r.height * 0.2))
-        p.addCurve(to: CGPoint(x: r.minX + r.width * 0.12, y: r.maxY),
-                   control1: CGPoint(x: r.maxX - r.width * 0.3, y: r.maxY - r.height * 0.15),
-                   control2: CGPoint(x: r.minX + r.width * 0.4, y: r.maxY))
-        p.addCurve(to: CGPoint(x: r.minX + r.width * 0.05, y: r.minY + r.height * 0.35),
-                   control1: CGPoint(x: r.minX, y: r.maxY), control2: CGPoint(x: r.minX - r.width * 0.02, y: r.minY + r.height * 0.6))
-        p.closeSubpath()
-        return p
+        let a = r.width * 0.165
+        return Path(CGRect(x: r.midX - a, y: r.minY, width: 2 * a, height: r.height / 2 - a))
     }
 }
