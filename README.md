@@ -153,8 +153,10 @@ swift test      # no controller needed
 Tested on a Vader 5 Pro with firmware 7.1.5.0 over USB cable on macOS 26: identity, settings, reading
 all profiles, backup, a profile write with read-back verification, a byte-exact restore, and the live
 input stream (about 520 reports per second). The app connects and reads the controller the same way.
-Remapping, stick, trigger, gyro, vibration and lighting writes use the same verified upload path and
-layouts that other projects confirmed on hardware; macro storage has had the least real-world testing.
+Remapping works on hardware: with M1 mapped to A, pressing M1 produced A on the controller's Xbox
+output. Turbo, stick, trigger and gyro settings were written and read back intact on the same controller,
+but their effect in play has not been checked yet. Vibration and lighting writes use the same upload path
+and layouts that other projects confirmed on hardware; macro storage has had the least real-world testing.
 If something does not behave the way OpenVader says it will, please open an issue with the output of
 `OPENVADER_TRACE=1 build/vaderctl …` and your firmware version.
 
