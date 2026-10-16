@@ -133,6 +133,24 @@ public struct StickHostSettings: Codable, Hashable, Sendable {
 }
 
 /// Motion moves the Mac's pointer.
+/// Which rotation moves the pointer left and right, like Steam Input's gyro turn axis.
+public enum GyroTurnAxis: String, Codable, CaseIterable, Sendable, Identifiable {
+    /// Turning the controller flat, as if looking around.
+    case yaw
+    /// Leaning it sideways, like a steering wheel.
+    case roll
+    case both
+
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .yaw: "Turning"
+        case .roll: "Leaning"
+        case .both: "Both"
+        }
+    }
+}
+
 public struct GyroMouseSettings: Codable, Hashable, Sendable {
     /// nil means always on.
     public var enableKey: ControllerKey?
@@ -141,14 +159,29 @@ public struct GyroMouseSettings: Codable, Hashable, Sendable {
     public var sensitivity: Int
     public var invertX: Bool
     public var invertY: Bool
+    public var turnAxis: GyroTurnAxis
 
     public init(enableKey: ControllerKey? = .lt, activation: GyroSettings.Activation = .hold, sensitivity: Int = 40,
-                invertX: Bool = false, invertY: Bool = false) {
+                invertX: Bool = false, invertY: Bool = false, turnAxis: GyroTurnAxis = .both) {
         self.enableKey = enableKey
         self.activation = activation
         self.sensitivity = sensitivity
         self.invertX = invertX
         self.invertY = invertY
+        self.turnAxis = turnAxis
+    }
+
+    private enum CodingKeys: String, CodingKey { case enableKey, activation, sensitivity, invertX, invertY, turnAxis }
+
+    /// Settings saved before `turnAxis` existed read back as `.both`.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enableKey = try c.decodeIfPresent(ControllerKey.self, forKey: .enableKey)
+        activation = try c.decode(GyroSettings.Activation.self, forKey: .activation)
+        sensitivity = try c.decode(Int.self, forKey: .sensitivity)
+        invertX = try c.decode(Bool.self, forKey: .invertX)
+        invertY = try c.decode(Bool.self, forKey: .invertY)
+        turnAxis = try c.decodeIfPresent(GyroTurnAxis.self, forKey: .turnAxis) ?? .both
     }
 }
 

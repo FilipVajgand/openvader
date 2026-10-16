@@ -166,14 +166,17 @@ raw input and what it sends to games:
 | Stick dead zone and response curve | verified |
 | Gyro to stick, hold-to-activate | verified |
 | Macros (stored and played by the controller) | verified: M2 plays X then Y |
-| Lighting (steady, breathing, colour cycle) | verified: the controller fades between frames |
+| Lighting: every effect, rainbow direction, speed levels | verified by eye: the controller fades between frames |
 | Mac keyboard/mouse markers: a button or stick handed to the Mac is hidden from games while OpenVader still reads it | verified |
-| Mac keyboard/mouse output itself (keys, clicks, pointer) | standard macOS event APIs; needs Accessibility access |
+| Mac keyboard/mouse output: a paddle typing a key, gyro moving the pointer | verified (needs Accessibility access) |
 | Motor test: trigger motors | verified: both triggers buzz over the cable |
 | Bluetooth on a Mac: games see an Xbox One controller; grip rumble | verified |
 | Bluetooth on a Mac: trigger rumble from games | does not reach the trigger motors |
-| Trigger travel window (travel mode of the trigger switch) | written and read back; effect on games not yet confirmed |
-| Vibration settings, Switch-mode copy, stick precision, centre sensitivity | written through the same verified paths; effect not yet checked |
+| Trigger travel window (travel mode of the trigger switch) | verified: the pull between start and end is stretched over the full range, a hair trigger |
+| Grip rumble on/off per motor | verified: a switched-off motor stays still under game rumble |
+| Stick precision | verified: at 8 bit, games receive 256-step values |
+| Centre sensitivity | written and read back; no clear effect measured yet |
+| Grip rumble strength window and gain, Switch-mode copy | written through the same verified paths; effect not yet checked |
 
 If something does not behave the way OpenVader says it will, please open an issue with the output of
 `OPENVADER_TRACE=1 build/vaderctl …` and your firmware version.

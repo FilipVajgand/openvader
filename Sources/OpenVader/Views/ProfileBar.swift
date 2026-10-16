@@ -170,7 +170,7 @@ struct HostAccessBanner: View {
                         .font(.callout.weight(.semibold))
                     Text(model.hostPermission
                          ? "They work while OpenVader is running (it stays in the menu bar) and the controller is on the receiver or cable."
-                         : "macOS asks once. Turn OpenVader on under Privacy & Security → Accessibility, then come back.")
+                         : "Turn OpenVader on under Privacy & Security → Accessibility. If it is already on, a newer copy of the app needs it again: remove it with −, then click Allow… once more.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()

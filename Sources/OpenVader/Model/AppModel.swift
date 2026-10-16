@@ -636,8 +636,13 @@ final class AppModel {
         return m.isEmpty ? nil : m
     }
 
+    /// macOS shows its prompt only once per app, so when access is still missing afterwards
+    /// open the Accessibility list directly.
     func requestHostPermission() {
-        HostEngine.requestPermission()
+        if !HostEngine.requestPermission(),
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
         hostPermission = HostEngine.hasPermission
         updateEngine()
     }

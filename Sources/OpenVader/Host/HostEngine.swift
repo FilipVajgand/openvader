@@ -17,6 +17,9 @@ final class HostEngine: @unchecked Sendable {
     private var mouseDown: Set<MouseButton> = []
     private var gyroToggled = false
     private var gyroKeyWasDown = false
+    /// The gyro's resting offset, learned while the controller is still, so the pointer does not drift.
+    private var gyroBias = SIMD3<Double>(0, 0, 0)
+    private var gyroStill = 0.0
     private var pointerRemainder = SIMD2<Double>(0, 0)
     private var scrollRemainder = SIMD2<Double>(0, 0)
     private var scrollRepeat: [ControllerKey: Double] = [:]
@@ -108,6 +111,7 @@ final class HostEngine: @unchecked Sendable {
             }
 
             // Gyro
+            learnGyroBias(s.gyro, dt)
             if let g = m.gyro {
                 var on = true
                 if let k = g.enableKey {
@@ -121,19 +125,32 @@ final class HostEngine: @unchecked Sendable {
                     gyroKeyWasDown = down
                 }
                 if on {
-                    // Axes follow SDL's Vader 5 Pro driver: pitch is the report's x,
-                    // yaw its z (y is roll). Turning right and tilting up are negative.
-                    var yaw = -s.gyro.z, pitch = -s.gyro.x
-                    if abs(yaw) < 1.2 { yaw = 0 }
-                    if abs(pitch) < 1.2 { pitch = 0 }
+                    // Axes follow SDL's Vader 5 Pro driver: pitch is the report's x, yaw its z, roll its y
+                    // (negated). Turning right and tilting up read negative; leaning right reads positive.
+                    let r = s.gyro - gyroBias
+                    let yaw = g.turnAxis == .roll ? 0 : -r.z
+                    let roll = g.turnAxis == .yaw ? 0 : r.y
+                    let right = Self.tighten(yaw + roll), up = Self.tighten(-r.x)
                     let pxPerDegree = Double(g.sensitivity) / 100 * 30
-                    pointer += SIMD2(g.invertX ? -yaw : yaw, g.invertY ? -pitch : pitch) * pxPerDegree * dt
+                    pointer += SIMD2(g.invertX ? -right : right, g.invertY ? -up : up) * pxPerDegree * dt
                 }
             }
 
             movePointer(pointer)
             scrollBy(scroll)
         }
+    }
+
+    /// Rates under `threshold` degrees per second are scaled down smoothly rather than cut off, so hand
+    /// tremor stays still while slow, deliberate movement still moves (Jibb Smart's "tightening").
+    private static func tighten(_ rate: Double, threshold: Double = 3) -> Double {
+        abs(rate) < threshold ? rate * abs(rate) / threshold : rate
+    }
+
+    private func learnGyroBias(_ rate: SIMD3<Double>, _ dt: Double) {
+        let d = rate - gyroBias
+        gyroStill = max(abs(d.x), abs(d.y), abs(d.z)) < 2.5 ? gyroStill + dt : 0
+        if gyroStill > 0.5 { gyroBias += d * min(1, dt * 2) }
     }
 
     // MARK: Output

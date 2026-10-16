@@ -233,4 +233,17 @@ import Testing
         #expect(p.stick(.right).isStick && p.stick(.right).deadZone == 5)
         #expect(p.stick(.right).bank.first == 45 && p.stick(.right).bank.last == 150)
     }
+
+    @Test func gyroMouseSettingsFromBeforeTurnAxisStillLoad() throws {
+        // What older versions wrote: today's encoding without the turnAxis key.
+        var json = try #require(try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(GyroMouseSettings(invertY: true, turnAxis: .yaw))) as? [String: Any])
+        json["turnAxis"] = nil
+        let g = try JSONDecoder().decode(GyroMouseSettings.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(g.turnAxis == .both && g.invertY && g.enableKey == .lt)
+        var changed = g
+        changed.turnAxis = .roll
+        let back = try JSONDecoder().decode(GyroMouseSettings.self, from: JSONEncoder().encode(changed))
+        #expect(back == changed)
+    }
 }

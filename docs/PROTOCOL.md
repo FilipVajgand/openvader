@@ -74,7 +74,7 @@ Never sent: `1F` (bootloader), `AF` (resets all four profiles despite taking a s
 | 0 | 2 | layout version, minor then major |
 | 13 | 96 | key table: 32 × `[target, turbo mode, turbo rate]`, indexed by key id |
 | 109 | 14 | stick curve source: 2 × `[type, dead zone, p1x, p1y, p2x, p2y, end]` (0…127 points) |
-| 123 | 14 | trigger travel: 2 × `[type, start, s, s, e, e, end]` (0…255) |
+| 123 | 14 | trigger travel: 2 × `[type, start, s, s, e, e, end]` (0…255); the pad stretches `start…end` of the pull over 0…255, and its own `0xEF` stream already shows the stretched value |
 | 137 | 8 | gyro: `[target, key, hold?, dead zone, sens, sens, mode, second key]` |
 | 145 | 9 | grip rumble: master (0 on, FF off), 2 × `[on, min, max, gain]` |
 | 154 | 29 | trigger rumble: master (0 on, 1 off), 2 × (2 × 7-byte gears) |

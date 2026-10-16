@@ -41,8 +41,9 @@ struct TriggerEditor: View {
             .pickerStyle(.segmented)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Live: \(Int(live * 100)) % pulled").font(.caption).foregroundStyle(.secondary)
-                LevelBar(value: live, window: Double(travel.start) / 255...Double(travel.end) / 255, height: 14)
+                // The controller reports the trigger after its saved window, i.e. what games receive.
+                Text("Live output: \(Int(live * 100)) %").font(.caption).foregroundStyle(.secondary)
+                LevelBar(value: live, height: 14)
             }
             ValueSlider(title: "Starts responding at", value: Binding(
                 get: { travel.start }, set: { travel.start = min($0, travel.end) }), range: 0...255,
@@ -50,7 +51,7 @@ struct TriggerEditor: View {
             ValueSlider(title: "Full press at", value: Binding(
                 get: { travel.end }, set: { travel.end = max($0, travel.start) }), range: 0...255,
                 format: { "\(Int(Double($0) / 2.55)) %" })
-            Text("Only matters with the trigger switch on the back set to travel; in click mode the trigger acts as a button. Stored on the controller, but its effect on games is not yet confirmed on the Vader 5 Pro.")
+            Text("Only matters with the trigger switch on the back set to travel; in click mode the trigger acts as a button. The controller stretches this part of the pull over the full range, so games still get 0–100 %. The live bar shows that output, using the window saved on the controller.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -149,6 +150,12 @@ struct GyroMouseEditor: View {
             }
             .pickerStyle(.segmented)
         }
+        Picker("Left/right from", selection: $settings.turnAxis) {
+            ForEach(GyroTurnAxis.allCases) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        Text("Turning is rotating the controller flat, as if looking around; leaning is tilting it sideways like a steering wheel.")
+            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         ValueSlider(title: "Sensitivity", value: $settings.sensitivity, range: 1...100)
         HStack {
             Toggle("Invert horizontal", isOn: $settings.invertX)

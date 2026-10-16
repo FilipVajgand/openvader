@@ -19,6 +19,7 @@ let usage = """
       light <1-4> <steady|breathing|strobe|gradient|rainbowFade|flow|comet|scanner|fire|off> [#RRGGBB ...] [brightness=0-100] [speed=1-255] [direction=left|right]
       stick <1-4> <left|right> [deadzone=0-100] [outer=0-100] [curve=linear|instant|delayed] [circular=on|off]
       trigger <1-4> <left|right> <start 0-255> <end 0-255>
+      vibration <1-4> [grip=on|off] [left=on|off] [right=on|off] [left-gain=0-100] [right-gain=0-100]
       gyro <1-4> <off|left|right> [key=LT] [hold|toggle] [sensitivity=0-100] [deadzone=0-100]
       rename <1-4> <name>
       reset-profile <1-4>          put one profile back to factory settings
@@ -280,6 +281,21 @@ func run(_ args: [String]) throws {
         m.setTrigger(TriggerTravel(start: start, end: end), side)
         try v.commit(profile: p, mapping: m, progress: progressBar("Writing"))
         print("\(side.title) trigger travel \(m.trigger(side).start)…\(m.trigger(side).end)")
+
+    case "vibration":
+        let p = try profileArg(args, 1)
+        let opts = options(args.dropFirst(2)[...])
+        var m = try v.readProfile(p)
+        var g = m.gripVibration
+        if let on = opts["grip"] { g.enabled = on == "on" }
+        if let on = opts["left"] { g.left.enabled = on == "on" }
+        if let on = opts["right"] { g.right.enabled = on == "on" }
+        if let s = opts["left-gain"].flatMap(Int.init) { g.left.scale = max(0, min(100, s)) }
+        if let s = opts["right-gain"].flatMap(Int.init) { g.right.scale = max(0, min(100, s)) }
+        m.gripVibration = g
+        try v.commit(profile: p, mapping: m, progress: progressBar("Writing"))
+        let side = { (m: GripVibration.Motor) in m.enabled ? "on, gain \(m.scale)" : "off" }
+        print("Grip rumble \(g.enabled ? "on" : "off"): left \(side(g.left)), right \(side(g.right))")
 
     case "gyro":
         let p = try profileArg(args, 1)
