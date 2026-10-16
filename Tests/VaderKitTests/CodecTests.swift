@@ -97,7 +97,7 @@ import Testing
         #expect((1..<10).allSatisfy { f in (0..<12).allSatisfy { l.color(frame: f, led: $0).isBlack } })
         #expect(l.bytes.count == 380)
         #expect(l.bytes[2] == 0)
-        #expect(l.rumbleSync, "header bytes outside the effect are preserved")
+        #expect(l.gripSync, "header bytes outside the effect are preserved")
     }
 
     @Test func breathingAlternatesWithDark() {

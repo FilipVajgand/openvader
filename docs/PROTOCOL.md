@@ -98,7 +98,8 @@ table when that stick's curve is edited.
 ## Lighting blob (320 bytes)
 
 Header of 20 bytes: `[0, 3, clickFeedback, loopStart, loopEnd, frameTime, brightness, ledCount, effect,
-rumbleSync, FF × 10]`, then frames × LEDs × RGB. The Vader 5 Pro reports 10 LEDs and 10 frames (the Apex 5 has 12); read
+gripSync, FF × 10]`, then frames × LEDs × RGB. `gripSync` is Flydigi's "sync grip lighting" flag; on a Vader 5 Pro
+(fw 7.1.5.0) setting it changed nothing visible, with either game rumble or the `0x12` motor test. The Vader 5 Pro reports 10 LEDs and 10 frames (the Apex 5 has 12); read
 the geometry from the blob rather than assuming it.
 
 The controller has no effect generator. It cycles frames `loopStart…loopEnd`, and the effect byte is only

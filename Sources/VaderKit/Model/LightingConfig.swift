@@ -114,8 +114,9 @@ public struct LightingConfig: Sendable, Equatable {
         set { bytes[5] = UInt8(max(1, min(255, newValue))) }
     }
 
-    /// Dims part of the light bar while the grips rumble.
-    public var rumbleSync: Bool {
+    /// Flydigi's "sync grip lighting" flag (`GripSync`). It has no visible effect on the Vader 5 Pro, which
+    /// has no grip lights; the light bar ignored both game and test rumble with it set. Kept as read.
+    public var gripSync: Bool {
         get { bytes[9] == 1 }
         set { bytes[9] = newValue ? 1 : 0 }
     }

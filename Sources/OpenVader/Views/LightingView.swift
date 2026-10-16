@@ -89,8 +89,6 @@ struct LightingView: View {
                                     help: "Frame time stored on the controller; smaller is faster.",
                                     format: { "\(256 - $0)" })
                             }
-                            Toggle("Light reacts to rumble", isOn: Binding(
-                                get: { draft.lighting.rumbleSync }, set: { draft.lighting.rumbleSync = $0 }))
                         }
                     }
                 }
