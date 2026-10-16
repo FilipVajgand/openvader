@@ -1,13 +1,16 @@
 #!/bin/sh
 # Builds OpenVader.app into ./build. Usage: scripts/build-app.sh [debug|release]
+# UNIVERSAL=1 builds for both Apple silicon and Intel.
 set -eu
 cd "$(dirname "$0")/.."
 CONFIG="${1:-release}"
 VERSION="$(sed -n 's/.*string = "\(.*\)"/\1/p' Sources/VaderKit/Device/DeviceBackup.swift)"
+ARCHS=""
+if [ "${UNIVERSAL:-0}" = 1 ]; then ARCHS="--arch arm64 --arch x86_64"; fi
 
-swift build -c "$CONFIG" --product OpenVader
-swift build -c "$CONFIG" --product vaderctl
-BIN="$(swift build -c "$CONFIG" --show-bin-path)"
+swift build -c "$CONFIG" $ARCHS --product OpenVader
+swift build -c "$CONFIG" $ARCHS --product vaderctl
+BIN="$(swift build -c "$CONFIG" $ARCHS --show-bin-path)"
 
 APP=build/OpenVader.app
 rm -rf "$APP"

@@ -61,13 +61,30 @@ a Switch or a PC.
 
 ## Install
 
-Requires macOS 14 or newer and the Xcode command-line tools (Swift 6).
+Requires macOS 14 or newer, on Apple silicon or Intel.
+
+1. Download **OpenVader-*version*.zip** from the [latest release](https://github.com/FilipVajgand/openvader/releases/latest),
+   unzip it and move OpenVader to Applications.
+2. OpenVader is not notarized by Apple, so macOS blocks the first launch. Open it once, then click
+   **Open Anyway** under System Settings → Privacy & Security. Or run
+   `xattr -dr com.apple.quarantine /Applications/OpenVader.app`.
+
+Keyboard and mouse actions need Accessibility access. macOS ties that permission to each build, so a new
+version asks again; if OpenVader is listed but does not work, remove it from the list with − and allow it
+again.
+
+### Build from source
+
+Requires the Xcode command-line tools (Swift 6).
 
 ```sh
 git clone https://github.com/FilipVajgand/openvader.git && cd openvader
 scripts/build-app.sh            # builds build/OpenVader.app and build/vaderctl
 open build/OpenVader.app
 ```
+
+`scripts/package-release.sh` builds the universal release zips into `dist/`; pushing a `v*` tag does the same
+on GitHub Actions and publishes the release.
 
 Plug in the 2.4 GHz receiver (or a USB-C cable), switch the controller on, and OpenVader connects by
 itself. No drivers, no root, no special entitlements: the configuration interface is a vendor HID device
