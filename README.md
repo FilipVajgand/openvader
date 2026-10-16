@@ -149,8 +149,9 @@ swift test      # no controller needed
 - **Bluetooth.** Fine for playing, but the configuration interface is only reachable over the receiver
   or a cable.
 - **Phone games ignore the controller.** If the light flashes cyan while pairing, the controller is in
-  Flashplay mode, where a phone sees a touchscreen instead of a gamepad. Press Turbo + D-pad Right; the
-  light turns orange. Then pair "Xbox Wireless Controller". See [docs/BLUETOOTH.md](docs/BLUETOOTH.md).
+  Flashplay mode, where a phone sees a touchscreen instead of a gamepad. Press Fn (the ○ button on the
+  back) + D-pad Right; the light turns orange. Then pair "Xbox Wireless Controller". See
+  [docs/BLUETOOTH.md](docs/BLUETOOTH.md).
 
 ## Status
 

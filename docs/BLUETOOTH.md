@@ -9,9 +9,10 @@ modes that look nothing alike to the phone:
 | **Flashplay** | cyan | Bluetooth LE | a three-finger touchscreen, plus Flydigi's vendor services |
 | **Native** | orange on this unit (the manual says blue) | classic Bluetooth (BR/EDR) | "Xbox Wireless Controller", an Xbox One S gamepad |
 
-The controller remembers its mode. On this unit **Turbo + D-pad Right**, pressed while the light flashed cyan,
-switched it from Flashplay to native. A retailer's guide gives Fn + D-pad Right for native and Fn + D-pad Up
-for Flashplay; those are not checked here.
+The controller remembers its mode. **Fn + D-pad Right**, pressed while the light flashes cyan, switched this
+unit from Flashplay to native, as a retailer's guide describes; the same guide gives Fn + D-pad Up for the way
+back (not checked here). **Fn + logo** for 3 seconds starts pairing, as the manual says. Fn is the back button
+marked ○; the manual's drawing shows the back, so left and right are swapped compared with holding it.
 
 ## Native mode: an Xbox One S controller
 
@@ -33,6 +34,26 @@ mapped to standard buttons. Input report 1 arrived about 55 times a second over 
 longer than 100 ms. Android sent `GET_REPORT` for report 4 (battery) three times, and the controller answered
 each with handshake `0x02` (invalid report ID). The phone made no Bluetooth LE connection in native mode, so
 the Flydigi services below were not reachable from it.
+
+### On a Mac
+
+Paired with macOS 26 on 2026-10-17, the controller shows up as `045E:02E0` "Xbox Wireless Controller", and
+Apple's GameController framework, which Mac games use, lists it as an Xbox One controller. It has every
+standard button plus the Xbox button, and haptics on both grips and both triggers. Idle, it sends about
+43 input reports a second. Battery level reads as unknown.
+
+Rumble through GameController haptics, driven from a test where each face button buzzed one motor:
+
+| Motor | Result |
+|---|---|
+| Left grip | deep rumble (the heavy motor, as on an Xbox controller) |
+| Right grip | lighter, buzzy rumble (the light motor) |
+| Left and right trigger | nothing, although macOS accepted every request |
+
+The profile had the trigger motors switched on at 50 % (the factory setting), so a disabled setting does not
+explain the silent triggers. The likely reading is that the firmware drives its trigger motors by its own
+rules and ignores the trigger magnitudes in rumble report 3. There are no DualSense-style adaptive triggers:
+the trigger resistance is the mechanical click/travel switch.
 
 ## Flashplay mode: Bluetooth LE
 
@@ -86,6 +107,8 @@ centred on `0x81` (left X, left Y, right X, right Y); bytes 11–13 change with 
 - Whether profiles can be read or written over this pipe is unknown. The Android app never configures this
   controller, so a capture of a configuring client (for example Space Station on Windows over Bluetooth, if it
   supports that) would be needed.
-- In native mode a Mac would see an Xbox One S controller (`045E:02E0`). That is untested here.
+- In native mode a Mac sees an Xbox One S controller with no settings channel: the HID descriptor has no
+  feature reports or vendor page, and SDP lists only the HID and Device ID services. Settings still need
+  the receiver or the cable; what is saved there applies over Bluetooth too.
 - The Telink OTA service means the radio firmware can in principle be updated over Bluetooth. OpenVader does
   not flash firmware.
