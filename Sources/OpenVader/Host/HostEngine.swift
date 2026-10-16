@@ -121,8 +121,9 @@ final class HostEngine: @unchecked Sendable {
                     gyroKeyWasDown = down
                 }
                 if on {
-                    // Yaw turns the pointer sideways, pitch moves it up and down.
-                    var yaw = -s.gyro.y, pitch = -s.gyro.x
+                    // Axes follow SDL's Vader 5 Pro driver: pitch is the report's x,
+                    // yaw its z (y is roll). Turning right and tilting up are negative.
+                    var yaw = -s.gyro.z, pitch = -s.gyro.x
                     if abs(yaw) < 1.2 { yaw = 0 }
                     if abs(pitch) < 1.2 { pitch = 0 }
                     let pxPerDegree = Double(g.sensitivity) / 100 * 30

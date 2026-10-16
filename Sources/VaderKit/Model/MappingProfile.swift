@@ -166,7 +166,9 @@ public struct MappingProfile: Sendable, Equatable {
                 activation: bytes[b + 2] == 1 ? .hold : .toggle,
                 deadZone: Int(min(bytes[b + 3], 100)),
                 sensitivity: Int(min(max(bytes[b + 4], bytes[b + 5]), 100)),
-                secondKey: ControllerKey(rawValue: bytes[b + 7]))
+                // While gyro is off, byte 7 still holds the factory's 0 (D-pad Up),
+                // which would become a live second switch once gyro is enabled.
+                secondKey: bytes[b] == GyroSettings.Target.off.rawValue ? nil : ControllerKey(rawValue: bytes[b + 7]))
         }
         set {
             let b = Offset.motion

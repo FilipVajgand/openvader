@@ -140,6 +140,17 @@ func factoryProfile() -> MappingProfile {
         #expect(Array(p.bytes[137..<145]) == [1, 12, 1, 4, 60, 60, 1, 10])
     }
 
+    @Test func enablingGyroDropsFactoryStrayKey() {
+        var p = factoryProfile()
+        #expect(p.bytes[144] == 0, "the factory stores D-pad Up in the second-key byte")
+        var g = p.gyro
+        #expect(g.secondKey == nil)
+        g.target = .rightStick
+        g.activation = .hold
+        p.gyro = g
+        #expect(p.bytes[144] == 0xFF)
+    }
+
     @Test func gripVibrationRoundTrips() {
         var p = factoryProfile()
         var v = p.gripVibration

@@ -36,16 +36,17 @@ a Switch or a PC.
 
 | Area | What it changes | Where it runs |
 |---|---|---|
-| **Profiles** | Four on-board slots: switch, rename, back up, restore, copy one into Nintendo Switch mode | controller |
+| **Profiles** | Four on-board slots: switch, rename, copy between slots, reset to factory, back up, restore, a profile library and `.ovprofile` files, copy one into Nintendo Switch mode | controller + Mac |
 | **Buttons** | Remap M1–M4, LM/RM, C/Z and every standard button to any Xbox-layout button; per-button turbo (1–20/s, hold or toggle) | controller |
 | **Sticks** | Linear / instant / delayed / custom curve, inner and outer dead zone, circular or square range | controller |
 | **Triggers** | Physical travel window (hair trigger), trigger-motor vibration strength | controller |
 | **Gyro** | Motion to left or right stick, activation key (hold or toggle), sensitivity, dead zone | controller |
 | **Vibration** | Grip motor on/off, intensity window and gain per side; test all four motors | controller |
 | **Lighting** | Steady, breathing, colour cycle, rainbow flow or off; colours, brightness, speed | controller |
-| **Macros** | Up to 10 per profile, recorded live from the controller or edited step by step | controller |
-| **Controller** | Sleep timer, quick profile switching, turbo button, stick debounce/auto-calibration, Steam & SDL takeover | controller |
-| **Live test** | Every button, both sticks, triggers, gyro and accelerometer at ~500 Hz | Mac |
+| **Macros** | Up to 10 per profile, recorded live from the controller or edited step by step; a macro library and copying between profiles | controller |
+| **Controller** | Name, sleep timer, stick precision and centre sensitivity, quick profile switching, turbo, stick debounce/auto-calibration/snap-back filter, Steam & SDL takeover, firmware update check | controller |
+| **Keyboard & mouse** | Buttons as keys, clicks or scrolling; sticks as pointer, WASD, arrows or scrolling; gyro as pointer (what Space Station does on Windows) | Mac, while OpenVader runs |
+| **Live test** | Every button, both sticks, triggers, gyro and accelerometer at ~500 Hz; stick circularity test | Mac |
 
 ### Tips for Mac players
 
@@ -150,13 +151,23 @@ swift test      # no controller needed
 
 ## Status
 
-Tested on a Vader 5 Pro with firmware 7.1.5.0 over USB cable on macOS 26: identity, settings, reading
-all profiles, backup, a profile write with read-back verification, a byte-exact restore, and the live
-input stream (about 520 reports per second). The app connects and reads the controller the same way.
-Remapping works on hardware: with M1 mapped to A, pressing M1 produced A on the controller's Xbox
-output. Turbo, stick, trigger and gyro settings were written and read back intact on the same controller,
-but their effect in play has not been checked yet. Vibration and lighting writes use the same upload path
-and layouts that other projects confirmed on hardware; macro storage has had the least real-world testing.
+Tested on a Vader 5 Pro, firmware 7.1.5.0, over USB cable on macOS 26, by reading both the controller's
+raw input and what it sends to games:
+
+| Feature | On hardware |
+|---|---|
+| Reading, backup, byte-exact restore, factory data | verified |
+| Button remapping (M1 → A) | verified: games receive A |
+| Turbo (10 presses per second) | verified |
+| Stick dead zone and response curve | verified |
+| Gyro to stick, hold-to-activate | verified |
+| Macros (stored and played by the controller) | verified: M2 plays X then Y |
+| Lighting (steady, breathing, colour cycle) | verified: the controller fades between frames |
+| Mac keyboard/mouse markers: a button or stick handed to the Mac is hidden from games while OpenVader still reads it | verified |
+| Mac keyboard/mouse output itself (keys, clicks, pointer) | standard macOS event APIs; needs Accessibility access |
+| Trigger travel window | written and read back; effect on games not yet confirmed |
+| Vibration settings, Switch-mode copy, stick precision, centre sensitivity | written through the same verified paths; effect not yet checked |
+
 If something does not behave the way OpenVader says it will, please open an issue with the output of
 `OPENVADER_TRACE=1 build/vaderctl …` and your firmware version.
 
