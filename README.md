@@ -50,8 +50,8 @@ a Switch or a PC.
 
 ### Tips for Mac players
 
-- **Bluetooth is for playing, the receiver is for configuring.** Over Bluetooth the Vader 5 Pro looks like
-  an Xbox controller, and macOS games see it out of the box, but the paddles have no Xbox equivalent.
+- **Bluetooth is for playing, the receiver is for configuring.** Over Bluetooth the Vader 5 Pro pairs as
+  "Xbox Wireless Controller", an Xbox One S controller to the system, but the paddles have no Xbox equivalent.
   Map them to real buttons in OpenVader and they work over Bluetooth too.
 - **Gyro aiming runs on the controller.** Map it to the right stick, hold LT to aim, and it works in any
   game with nothing running on the Mac.
@@ -148,6 +148,9 @@ swift test      # no controller needed
   plug straight into the Mac. `build/vaderctl list` shows what macOS can see.
 - **Bluetooth.** Fine for playing, but the configuration interface is only reachable over the receiver
   or a cable.
+- **Phone games ignore the controller.** If the light flashes cyan while pairing, the controller is in
+  Flashplay mode, where a phone sees a touchscreen instead of a gamepad. Press Turbo + D-pad Right; the
+  light turns orange. Then pair "Xbox Wireless Controller". See [docs/BLUETOOTH.md](docs/BLUETOOTH.md).
 
 ## Status
 
