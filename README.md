@@ -169,6 +169,9 @@ raw input and what it sends to games:
 | Lighting (steady, breathing, colour cycle) | verified: the controller fades between frames |
 | Mac keyboard/mouse markers: a button or stick handed to the Mac is hidden from games while OpenVader still reads it | verified |
 | Mac keyboard/mouse output itself (keys, clicks, pointer) | standard macOS event APIs; needs Accessibility access |
+| Motor test: trigger motors | verified: both triggers buzz over the cable |
+| Bluetooth on a Mac: games see an Xbox One controller; grip rumble | verified |
+| Bluetooth on a Mac: trigger rumble from games | does not reach the trigger motors |
 | Trigger travel window (travel mode of the trigger switch) | written and read back; effect on games not yet confirmed |
 | Vibration settings, Switch-mode copy, stick precision, centre sensitivity | written through the same verified paths; effect not yet checked |
 

@@ -51,8 +51,8 @@ Rumble through GameController haptics, driven from a test where each face button
 | Left and right trigger | nothing, although macOS accepted every request |
 
 The profile had the trigger motors switched on at 50 % (the factory setting), so a disabled setting does not
-explain the silent triggers. The likely reading is that the firmware drives its trigger motors by its own
-rules and ignores the trigger magnitudes in rumble report 3. There are no DualSense-style adaptive triggers:
+explain the silent triggers. The motors work: over the cable, OpenVader's motor test (USB command `0x12`)
+buzzes both triggers. So over Bluetooth the firmware ignores the trigger magnitudes in rumble report 3. There are no DualSense-style adaptive triggers:
 the trigger resistance is the mechanical click/travel switch.
 
 ## Flashplay mode: Bluetooth LE
