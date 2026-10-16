@@ -50,7 +50,7 @@ struct TriggerEditor: View {
             ValueSlider(title: "Full press at", value: Binding(
                 get: { travel.end }, set: { travel.end = max($0, travel.start) }), range: 0...255,
                 format: { "\(Int(Double($0) / 2.55)) %" })
-            Text("Stored on the controller, but not yet confirmed to change what games see on the Vader 5 Pro. The trigger mode switches on the back work independently of it.")
+            Text("Only matters with the trigger switch on the back set to travel; in click mode the trigger acts as a button. Stored on the controller, but its effect on games is not yet confirmed on the Vader 5 Pro.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }

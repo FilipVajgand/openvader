@@ -165,7 +165,7 @@ raw input and what it sends to games:
 | Lighting (steady, breathing, colour cycle) | verified: the controller fades between frames |
 | Mac keyboard/mouse markers: a button or stick handed to the Mac is hidden from games while OpenVader still reads it | verified |
 | Mac keyboard/mouse output itself (keys, clicks, pointer) | standard macOS event APIs; needs Accessibility access |
-| Trigger travel window | written and read back; effect on games not yet confirmed |
+| Trigger travel window (travel mode of the trigger switch) | written and read back; effect on games not yet confirmed |
 | Vibration settings, Switch-mode copy, stick precision, centre sensitivity | written through the same verified paths; effect not yet checked |
 
 If something does not behave the way OpenVader says it will, please open an issue with the output of
