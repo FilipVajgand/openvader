@@ -12,7 +12,7 @@ page. No settings were changed, so this documents the transport and a few read c
 | `0x0001–0x0007` | `0x1800` Generic Access | |
 | `0x0008–0x000B` | `0x1801` Generic Attribute | |
 | `0x000C–0x0010` | `0x180A` Device Information | |
-| `0x0011–0x0021` | `0x1812` HID | the Xbox-compatible gamepad; input reports notify on `0x0017` (16 bytes) |
+| `0x0011–0x0021` | `0x1812` HID | in Flashplay mode a **touchscreen**, not a gamepad (see below); input reports notify on `0x0017` |
 | `0x0022–0x0029` | `6e400001-b5a3-f393-e0a9-e50e24dcca9e` | **Nordic UART Service**: write to `0x0024` (`6e400002`, write without response), notifications on `0x0027` (`6e400003`) |
 | `0x002A–0x002E` | `00010203-0405-0607-0809-0a0b0c0d1912` | **Telink OTA service** (characteristic `…2b12` on `0x002C`): the radio chip's firmware update |
 | `0x002F–0x0032` | `0x180F` Battery | |
@@ -35,11 +35,20 @@ a command byte first, and on 20-byte frames an additive checksum in the last byt
 The stream is 20-byte notifications about 45 times a second. Bytes 0–3 are the two sticks as unsigned bytes
 centred on `0x81` (left X, left Y, right X, right Y); bytes 11–13 change with motion; byte 18 is `FE`.
 
+## Flashplay is a touchscreen
+
+The HID report map (196 bytes, read with Read Blob) describes a Digitizer / Touch Screen with three fingers:
+tip switch, in range, contact ID and 12-bit X/Y each, plus contact count and maximum. There is no gamepad
+collection. In Flashplay mode the controller taps the phone's screen at positions the Flydigi app maps, so
+games that read a gamepad see nothing. For those games the controller must be in native Bluetooth mode, where
+the manual says it pairs as "Xbox Wireless Controller"; the light is blue in native mode and cyan in Flashplay.
+
 ## What it means for OpenVader
 
-- macOS can reach this pipe while the controller stays connected as a gamepad: CoreBluetooth's
-  `retrieveConnectedPeripherals(withServices:)` returns system-connected peripherals by service UUID. Reading
-  the device info and UID over Bluetooth from a Mac is therefore a cheap next experiment.
+- macOS could reach this pipe while the controller stays connected: CoreBluetooth's
+  `retrieveConnectedPeripherals(withServices:)` returns system-connected peripherals by service UUID. The
+  capture is of Flashplay mode only, so whether native mode also offers the Nordic UART service is unknown;
+  reading the device info and UID from a Mac is a cheap experiment that would answer it.
 - Whether profiles can be read or written over this pipe is unknown. The Android app never configures this
   controller, so a capture of a configuring client (for example Space Station on Windows over Bluetooth, if it
   supports that) would be needed.
