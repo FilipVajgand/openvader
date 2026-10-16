@@ -24,18 +24,29 @@ public struct MacroStore: Sendable, Equatable {
     /// Size the controller served; writes reuse it.
     public var size: Int
     public var version: UInt16
+    /// The bytes this store was read from. Encoding starts from them so the
+    /// four trailing bytes the factory leaves at zero are carried through.
+    private var base: [UInt8]
 
     public init(macros: [Macro] = [], size: Int = 1660, version: UInt16 = 0x0100) {
         self.macros = macros
         self.size = size
         self.version = version
+        var base = FactoryData.macroBytes
+        if base.count != size { base = Array(base.prefix(size)) + [UInt8](repeating: 0xFF, count: max(0, size - base.count)) }
+        self.base = base
     }
 
     public init(bytes: [UInt8]) {
         size = bytes.count
+        base = bytes
         version = bytes.count >= 2 ? UInt16(bytes[0]) | UInt16(bytes[1]) << 8 : 0x0100
         if version == 0xFFFF { version = 0x0100 }
         macros = Self.parse(bytes)
+    }
+
+    public static func == (a: MacroStore, b: MacroStore) -> Bool {
+        a.macros == b.macros && a.size == b.size && a.version == b.version
     }
 
     public func macro(for key: ControllerKey) -> Macro? { macros.first { $0.trigger == key } }
@@ -81,13 +92,16 @@ public struct MacroStore: Sendable, Equatable {
         guard macros.count <= Self.maxMacros else {
             throw VaderError.invalidArgument("A profile holds at most \(Self.maxMacros) macros.")
         }
-        var blob = [UInt8](repeating: 0xFF, count: size)
+        var blob = base.count == size ? base : [UInt8](repeating: 0xFF, count: size)
+        let tail = max(Self.dataStart, size - 4)
+        for i in Self.dataStart..<tail { blob[i] = 0xFF }
         func put16(_ o: Int, _ v: Int) {
             blob[o] = UInt8(v & 0xFF)
             blob[o + 1] = UInt8((v >> 8) & 0xFF)
         }
         put16(0, Int(version))
         put16(2, macros.count)
+        for i in 0..<Self.maxMacros { put16(4 + 2 * i, 0) }
         var running = 0
         for (i, macro) in macros.enumerated() {
             guard macro.steps.count <= Self.maxSteps else {
@@ -95,7 +109,7 @@ public struct MacroStore: Sendable, Equatable {
             }
             put16(4 + 2 * i, running)
             let base = Self.dataStart + running * 4
-            guard base + Self.recordHeader + macro.steps.count * 4 <= blob.count else {
+            guard base + Self.recordHeader + macro.steps.count * 4 <= tail else {
                 throw VaderError.invalidArgument("These macros do not fit in the controller's macro memory.")
             }
             blob[base] = macro.trigger.rawValue

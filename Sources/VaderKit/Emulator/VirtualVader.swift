@@ -25,6 +25,9 @@ public final class VirtualVader: VaderTransport, @unchecked Sendable {
     public private(set) var active = 0
     public private(set) var savedCount = 0
     public var sleepMinutes = 15
+    public var precision: UInt8 = 2
+    public var sensitivity: UInt8 = 17
+    public private(set) var nickname: [UInt8] = []
     public var featureBits: UInt8 = 0b0011_1001
     public var thirdParty = false
     public private(set) var rawStream = false
@@ -40,56 +43,15 @@ public final class VirtualVader: VaderTransport, @unchecked Sendable {
     public init() {
         mappings = (0..<4).map { Self.factoryMapping(profile: $0) }
         lightings = (0..<4).map { _ in Self.factoryLighting() }
-        macroStores = (0..<4).map { _ in [UInt8](repeating: 0xFF, count: 1660) }
+        macroStores = (0..<4).map { _ in FactoryData.macroBytes }
     }
 
     deinit { timer?.cancel() }
 
     // MARK: Factory data
 
-    /// A layout-3.2 profile as a factory-fresh Vader 5 Pro (firmware 7.1.5.0) holds it.
-    public static func factoryMapping(profile: Int) -> [UInt8] {
-        var b = [UInt8](repeating: 0xFF, count: MappingProfile.size)
-        b.replaceSubrange(0..<13, with: [0x02, 0x03, 0x4D, 0x20, 0x04, 0x28, 0xA0, 0, 0, 0xFF, 0, 0, 0])
-        for i in 0..<32 { b[13 + 3 * i] = 0xFF; b[14 + 3 * i] = 0; b[15 + 3 * i] = 0 }
-        let core: [UInt8] = [0, 5, 63, 63, 127, 127, 127]
-        b.replaceSubrange(109..<116, with: core)
-        b.replaceSubrange(116..<123, with: core)
-        let trig: [UInt8] = [0, 0, 0, 0, 255, 255, 255]
-        b.replaceSubrange(123..<130, with: trig)
-        b.replaceSubrange(130..<137, with: trig)
-        b.replaceSubrange(137..<145, with: [0, 12, 0, 4, 25, 20, 0, 0])
-        b.replaceSubrange(145..<154, with: [0, 0, 60, 255, 50, 0, 80, 255, 50])
-        let gear: [UInt8] = [1, 30, 80, 5, 1, 50, 0, 255, 40, 120, 5, 0, 50, 0]
-        b[154] = 0
-        b.replaceSubrange(155..<169, with: gear)
-        b.replaceSubrange(169..<183, with: gear)
-        b[183] = 0; b[184] = 0
-        let force: [UInt8] = [0, 0, 0x0A, 0x0A, 0x64, 0x01, 0xFF, 0x46] + [UInt8](repeating: 0, count: 12)
-        b.replaceSubrange(185..<205, with: force)
-        b.replaceSubrange(205..<225, with: force)
-        b.replaceSubrange(230..<236, with: [UInt8](repeating: 0, count: 6))
-        b.replaceSubrange(774..<790, with: [UInt8](repeating: 0, count: 16))
-        b.replaceSubrange(820..<825, with: [3, 3, 3, 3, 3])
-        b.replaceSubrange(830..<836, with: [0, 63, 63, 127, 127, 127])
-        let extra: [UInt8] = [0, 45, 58, 71, 84, 97, 110, 123, 137, 150, 0, 0]
-        b.replaceSubrange(790..<802, with: extra)
-        b.replaceSubrange(802..<814, with: extra)
-        var p = MappingProfile(bytes: b)
-        p.name = "Profile \(profile + 1)"
-        return p.bytes
-    }
-
-    /// 10 LEDs × 10 frames, as the Vader 5 Pro reports it.
-    public static func factoryLighting() -> [UInt8] {
-        var l = [UInt8](repeating: 0, count: 320)
-        l[1] = 3; l[4] = 9; l[5] = 4; l[6] = 20; l[7] = 10; l[8] = 7; l[9] = 0
-        for i in 10..<20 { l[i] = 0xFF }
-        var config = LightingConfig(bytes: l)
-        config.apply(.flow, colors: [])
-        config.bytes[8] = 7
-        return config.bytes
-    }
+    public static func factoryMapping(profile: Int) -> [UInt8] { FactoryData.mapping(profile: profile).bytes }
+    public static func factoryLighting() -> [UInt8] { FactoryData.lighting.bytes }
 
     // MARK: Transport
 
@@ -136,7 +98,7 @@ public final class VirtualVader: VaderTransport, @unchecked Sendable {
         let length = Int(frame[3])
         // Like the real pad, ignore frames with a bad checksum (except the
         // Switch-bank save, whose vendor frame is irregular).
-        if cmd != Command.saveSwitchConfig.rawValue, 2 + length < frame.count,
+        if cmd != Command.saveSwitchConfig.rawValue, cmd != Command.writeNickname.rawValue, 2 + length < frame.count,
            frame[2 + length] != Frame.checksum(frame[2..<(2 + length)]) { return }
         let payload = Array(frame[4..<min(frame.count, 2 + length)])
         lock.withLock { handle(cmd, payload) }
@@ -169,11 +131,21 @@ public final class VirtualVader: VaderTransport, @unchecked Sendable {
             reply(cmd, [0x82, 0x01, 0, 0, 0, 0, 0x04, 0x45, 0x01, 0x00, 0x72, 0x21, 0x04, 0x83, 0x36, 0x05,
                         0, 0, 0, 0, 0, 0, 0x10, 0x43])
         case .readNickname:
-            reply(cmd, [0])
+            reply(cmd, nickname.isEmpty ? [UInt8](repeating: 0xFF, count: 26) : nickname)
+        case .writeNickname:
+            // The pad keeps the name plus the byte after it, so that byte must be 0.
+            nickname = Array(p.prefix { $0 != 0 })
+            reply(cmd, [])
+        case .joystickPrecision where p.count >= 1:
+            precision = p[0]
+            reply(cmd, [p[0]])
+        case .joystickSensitivity where p.count >= 1:
+            sensitivity = p[0]
+            reply(cmd, [p[0]])
         case .readUID:
             reply(cmd, [0x56, 0x69, 0x72, 0x74, 0x75, 0x61, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
         case .hardwareStatus:
-            reply(cmd, [0b0111_1111, featureBits, 0, 0, UInt8(sleepMinutes), 0, 0, 0])
+            reply(cmd, [0b1111_1011, featureBits, 0, 0, UInt8(sleepMinutes), 0, precision, sensitivity])
         case .featureToggle where p.count >= 2:
             let bit = UInt8(1) << (p[0] - 1)
             if p[1] == 1 { featureBits |= bit } else { featureBits &= ~bit }

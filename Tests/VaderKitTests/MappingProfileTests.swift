@@ -46,7 +46,9 @@ func factoryProfile() -> MappingProfile {
         #expect(p.name == "A very lon")
         p.name = "配置3"
         #expect(p.name == "配置3")
-        #expect(p.bytes[770 + 6] == 0 && p.bytes[789] == 0)
+        #expect(p.bytes[770 + 6] == 0 && p.bytes[785] == 0)
+        p.name = "OpenVader"
+        #expect(p.name == "OpenVader")
     }
 
     @Test func factoryButtonsAreDefault() {

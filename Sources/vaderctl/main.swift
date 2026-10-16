@@ -21,6 +21,11 @@ let usage = """
       trigger <1-4> <left|right> <start 0-255> <end 0-255>
       gyro <1-4> <off|left|right> [key=LT] [hold|toggle] [sensitivity=0-100] [deadzone=0-100]
       rename <1-4> <name>
+      reset-profile <1-4>          put one profile back to factory settings
+      name <text>                  the controller's own name
+      precision <8|9|10|11|12>     stick precision in bits
+      sensitivity <fast|medium|slow>   stick center sensitivity
+      firmware                     ask Flydigi which firmware is current (never flashes)
       sleep <minutes, 0 = never>
       feature <name> <on|off>      names: \(DeviceFeature.allCases.map(cliName).joined(separator: ", "))
       third-party <on|off>         let Steam / SDL games take over the controller
@@ -301,6 +306,50 @@ func run(_ args: [String]) throws {
         try v.commit(profile: p, mapping: m, progress: progressBar("Writing"))
         print("Profile \(p + 1) is now \"\(m.name)\".")
 
+    case "reset-profile":
+        let p = try profileArg(args, 1)
+        let safety = try v.backup(progress: progressBar("Safety backup"))
+        print("Current state saved to \(try safety.saveToDefaultLocation(label: "before-reset").path)")
+        try v.resetToFactory(profile: p, progress: progressBar("Resetting"))
+        print("Profile \(p + 1) is back to factory settings.")
+
+    case "name":
+        if args.count > 1 { try v.writeNickname(args[1...].joined(separator: " ")) }
+        print("Name: \(try v.readNickname() ?? "(none)")")
+
+    case "precision":
+        guard args.count > 1, let choice = HardwareStatus.precisionChoices.first(where: { $0.label == "\(args[1]) bit" }) else {
+            throw CLIError("precision <8|9|10|11|12>")
+        }
+        try v.setJoystickPrecision(choice.code)
+        let now = try v.hardwareStatus().joystickPrecision
+        print("Stick precision: \(HardwareStatus.precisionChoices.first { $0.code == now }?.label ?? "\(now)")")
+
+    case "sensitivity":
+        guard args.count > 1, let choice = HardwareStatus.sensitivityChoices.first(where: { $0.label.lowercased() == args[1].lowercased() }) else {
+            throw CLIError("sensitivity <fast|medium|slow>")
+        }
+        try v.setJoystickSensitivity(choice.value)
+        print("Center sensitivity: \(choice.label) (\(try v.hardwareStatus().joystickSensitivity))")
+
+    case "firmware":
+        let info = try v.readInfo()
+        let sem = DispatchSemaphore(value: 0)
+        var outcome: Result<FirmwareCheck.Result, Error>!
+        Task {
+            outcome = await Result(catching: { try await FirmwareCheck.check(info) })
+            sem.signal()
+        }
+        sem.wait()
+        let result = try outcome.get()
+        for c in result.desktop {
+            print("\(c.label.padding(toLength: 12, withPad: " ", startingAt: 0)) installed \(c.installed ?? "-"), latest \(c.latest)\(c.isNewer ? "  ← update" : "")\(c.notes.isEmpty ? "" : "  (\(c.notes))")")
+        }
+        if let web = result.webApp.first(where: { $0.chip == "main_chip" }) {
+            print("Space Station 5.0 (web) firmware: \(web.latest). It changes the config format; OpenVader cannot write it yet.")
+        }
+        print("Install updates with Flydigi Space Station. OpenVader never flashes firmware.")
+
     case "sleep":
         guard args.count > 1, let minutes = Int(args[1]) else { throw CLIError("sleep <minutes>") }
         try v.setSleepTime(minutes: minutes)
@@ -366,4 +415,10 @@ do {
     let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
     FileHandle.standardError.write("error: \(message)\n".data(using: .utf8)!)
     exit(1)
+}
+
+extension Result where Failure == Error {
+    init(catching body: () async throws -> Success) async {
+        do { self = .success(try await body()) } catch { self = .failure(error) }
+    }
 }

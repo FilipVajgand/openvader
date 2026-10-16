@@ -64,10 +64,15 @@ public struct MappingProfile: Sendable, Equatable {
             var units = Array(newValue.utf16.prefix(10))
             // Do not leave half a surrogate pair at the end.
             if let last = units.last, UTF16.isLeadSurrogate(last) { units.removeLast() }
+            // The name field is 16 bytes plus 4 spare ones the factory leaves at
+            // 0xFF; only spill into those when the name needs them.
             for i in 0..<10 {
+                let o = Offset.name + 2 * i
+                let spareUntouched = i >= 8 && bytes[o] == 0xFF && bytes[o + 1] == 0xFF
+                if i >= units.count && spareUntouched { continue }
                 let unit = i < units.count ? units[i] : 0
-                bytes[Offset.name + 2 * i] = UInt8(unit & 0xFF)
-                bytes[Offset.name + 2 * i + 1] = UInt8(unit >> 8)
+                bytes[o] = UInt8(unit & 0xFF)
+                bytes[o + 1] = UInt8(unit >> 8)
             }
         }
     }

@@ -22,7 +22,7 @@ import Testing
         try device.activate(profile: 2)
         let snapshots = try device.readAllSnapshots()
         #expect(snapshots.count == 4)
-        #expect(snapshots.map(\.mapping.name) == ["Profile 1", "Profile 2", "Profile 3", "Profile 4"])
+        #expect(snapshots.map(\.mapping.name) == ["配置1", "配置2", "配置3", "配置4"])
         #expect(snapshots.allSatisfy { $0.lighting.isValid && $0.lighting.ledCount == 10 && $0.macroBytes.count == 1660 })
         #expect(pad.active == 2)
     }
@@ -151,5 +151,86 @@ import Testing
         let (device, _) = try make()
         #expect(throws: VaderError.self) { try device.connection.write(Frame.request(0xAF, [0])) }
         #expect(throws: VaderError.self) { try device.connection.write(Frame.request(0x1F)) }
+    }
+}
+
+@Suite(.serialized) struct ParityTests {
+    func make() throws -> (VaderDevice, VirtualVader) {
+        let pad = VirtualVader()
+        let device = VaderDevice(connection: pad, connectionKind: .dongle)
+        _ = try device.handshake()
+        return (device, pad)
+    }
+
+    @Test func factoryNamesKeepSpareBytes() {
+        var p = FactoryData.mapping(profile: 2)
+        #expect(p.name == "配置3")
+        #expect(Array(p.bytes[786..<790]) == [0xFF, 0xFF, 0xFF, 0xFF])
+        let before = p.bytes
+        p.name = "配置3"
+        #expect(p.bytes == before)
+        p.name = "Long name!"
+        #expect(p.name == "Long name!")
+        p.name = "Short"
+        #expect(p.name == "Short")
+    }
+
+    @Test func resetToFactoryIsExact() throws {
+        let (device, pad) = try make()
+        var m = try device.readProfile(1)
+        m.setBinding(ButtonBinding(action: .remap(.b)), for: .m3)
+        m.name = "Changed"
+        try device.commit(profile: 1, mapping: m)
+        try device.resetToFactory(profile: 1)
+        #expect(pad.mappings[1] == FactoryData.mapping(profile: 1).bytes)
+        #expect(pad.lightings[1] == FactoryData.lighting.bytes)
+        #expect(pad.macroStores[1] == FactoryData.macroBytes)
+        #expect(pad.tags[1] == 0xFFFF)
+    }
+
+    @Test func emptyMacroStoreRoundTripsToFactoryBytes() throws {
+        #expect(try MacroStore(bytes: FactoryData.macroBytes).encoded() == FactoryData.macroBytes)
+        var store = MacroStore(bytes: FactoryData.macroBytes)
+        store.macros = [Macro(trigger: .m1, steps: Macro.tap([.a]))]
+        let bytes = try store.encoded()
+        #expect(Array(bytes.suffix(4)) == [0, 0, 0, 0])
+        store.macros = []
+        #expect(try store.encoded() == FactoryData.macroBytes)
+    }
+
+    @Test func precisionSensitivityAndNickname() throws {
+        let (device, pad) = try make()
+        try device.setJoystickPrecision(3)
+        try device.setJoystickSensitivity(14)
+        let hw = try device.hardwareStatus()
+        #expect(hw.joystickPrecision == 3 && hw.joystickSensitivity == 14)
+        #expect(pad.precision == 3)
+        #expect(throws: VaderError.self) { try device.setJoystickPrecision(7) }
+        #expect(try device.readNickname() == nil)
+        try device.writeNickname("Filip's Vader")
+        #expect(try device.readNickname() == "Filip's Vader")
+    }
+
+    @Test func profileFileRoundTrips() throws {
+        var host = HostProfileMappings()
+        host.setAction(.key(KeyStroke(0x31)), for: .m1)
+        host.leftStick = StickHostSettings(mode: .wasd)
+        let file = ProfileFile(name: "Desk", deviceType: 130, mapping: FactoryData.mapping(profile: 0),
+                               lighting: FactoryData.lighting, macroBytes: FactoryData.macroBytes, host: host)
+        let back = try ProfileFile.decode(file.encoded())
+        #expect(back.mappingProfile == FactoryData.mapping(profile: 0))
+        #expect(back.lightingConfig == FactoryData.lighting)
+        #expect(back.host == host)
+        #expect(back.host?.action(for: .m1) == .key(KeyStroke(0x31)))
+    }
+
+    @Test func stickHostControlSilencesAndRestores() {
+        var p = FactoryData.mapping(profile: 0)
+        p.setStickHostControlled(true, .right)
+        #expect(!p.stick(.right).isStick)
+        #expect(p.stick(.right).bank.allSatisfy { $0 == 50 })
+        p.setStickHostControlled(false, .right, restoreDeadZone: 5)
+        #expect(p.stick(.right).isStick && p.stick(.right).deadZone == 5)
+        #expect(p.stick(.right).bank.first == 45 && p.stick(.right).bank.last == 150)
     }
 }

@@ -11,14 +11,53 @@ struct ProfileDraft: Equatable {
     /// Colours the lighting editor is working with.
     var lightingColors: [LEDColor]
     var lightingEffect: LightingEffect
+    /// Keyboard and mouse actions OpenVader performs on the Mac.
+    var host: HostProfileMappings
 
-    init(_ s: ProfileSnapshot) {
+    init(_ s: ProfileSnapshot, host: HostProfileMappings = HostProfileMappings()) {
         mapping = s.mapping
         lighting = s.lighting
         macros = s.macros
+        self.host = host
         let palette = s.lighting.paletteGuess
         lightingColors = palette.isEmpty ? [LEDColor(red: 0, green: 120, blue: 255)] : Array(palette.prefix(5))
         lightingEffect = s.lighting.effect ?? .factory
+    }
+
+    /// A button does something on the Mac (or stops doing so). The
+    /// controller's slot is marked "keyboard/mouse" so games stop seeing it.
+    mutating func setHostAction(_ action: HostAction?, for key: ControllerKey) {
+        host.setAction(action, for: key)
+        mapping.setBinding(ButtonBinding(action: action == nil ? .standard : .keyboardMouse), for: key)
+    }
+
+    /// A stick drives the Mac's pointer, keys or scrolling, or goes back to being a stick.
+    mutating func setStickHost(_ settings: StickHostSettings?, _ side: Side) {
+        let previous = host.stick(side)
+        if var settings {
+            if previous == nil { settings.savedDeadZone = mapping.stick(side).deadZone }
+            host.setStick(settings, side)
+            mapping.setStickHostControlled(true, side)
+        } else {
+            host.setStick(nil, side)
+            mapping.setStickHostControlled(false, side, restoreDeadZone: previous?.savedDeadZone ?? 5)
+        }
+    }
+
+    /// Motion moves the Mac's pointer, or not.
+    mutating func setGyroMouse(_ settings: GyroMouseSettings?) {
+        host.gyro = settings
+        var g = mapping.gyro
+        if settings != nil {
+            g.target = .mouse
+            g.enableKey = nil
+            g.secondKey = nil
+            g.deadZone = 0
+        } else if g.target == .mouse {
+            g.target = .off
+            g.enableKey = .lt
+        }
+        mapping.gyro = g
     }
 
     /// Rebuilds the lighting frames from the editor's effect and colours.
@@ -106,6 +145,15 @@ final class AppModel {
     var lastPressed: ControllerKey?
     var lastBackupURL: URL?
 
+    var nickname: String?
+    var firmware: FirmwareCheck.Result?
+    var firmwareError: String?
+    var checkingFirmware = false
+    var hostPermission = HostEngine.hasPermission
+    var hostEngineRunning = false
+    var macroLibrary: [Macro] = MacroLibrary.load()
+    var profileLibrary: [ProfileFile] = ProfileFile.library()
+
     @ObservationIgnored private var device: VaderDevice?
     @ObservationIgnored private let worker = DispatchQueue(label: "openvader.device", qos: .userInitiated)
     @ObservationIgnored private var watcher: DeviceWatcher?
@@ -113,6 +161,9 @@ final class AppModel {
     @ObservationIgnored private var inputTimer: Timer?
     @ObservationIgnored private var inputListeners = 0
     @ObservationIgnored private let inputBox = InputBox()
+    @ObservationIgnored private var hostStore = HostMappingStore.load()
+    @ObservationIgnored let engine = HostEngine()
+    @ObservationIgnored private var engineListening = false
 
     init() {
         watcher = DeviceWatcher { [weak self] in
@@ -135,9 +186,16 @@ final class AppModel {
 
     var savedSnapshot: ProfileSnapshot? { saved.first { $0.index == selectedProfile } }
 
+    /// Key under which host mappings are stored for this controller.
+    var controllerKey: String { uid ?? "unknown" }
+
+    func savedHost(_ profile: Int) -> HostProfileMappings {
+        hostStore.mappings(controller: controllerKey, profile: profile)
+    }
+
     func isDirty(_ profile: Int) -> Bool {
         guard let d = drafts[profile], let s = saved.first(where: { $0.index == profile }) else { return false }
-        return d.mapping != s.mapping || d.lighting != s.lighting || d.macros != s.macros
+        return d.mapping != s.mapping || d.lighting != s.lighting || d.macros != s.macros || d.host != savedHost(profile)
     }
 
     var hasUnsavedChanges: Bool { isDirty(selectedProfile) }
@@ -165,6 +223,11 @@ final class AppModel {
             return
         }
         if device.connection.isRemoved { disconnected(); return }
+        let permission = HostEngine.hasPermission
+        if permission != hostPermission {
+            hostPermission = permission
+            updateEngine()
+        }
         guard busy == nil else { return }
         worker.async { [weak self] in
             let info = try? device.readInfo()
@@ -177,6 +240,7 @@ final class AppModel {
                     self.versions = versions
                     // Follow profile switches made on the controller itself.
                     if changed, self.busy == nil, !self.hasUnsavedChanges { self.selectedProfile = versions.active }
+                    if changed { self.updateEngine() }
                 }
             }
         }
@@ -207,6 +271,7 @@ final class AppModel {
                 let report = try? vader.dataReportStatus()
                 let versions = try vader.profileVersions()
                 let snapshots = try vader.readAllSnapshots()
+                let nickname = try? vader.readNickname()
                 let backup = DeviceBackup(info: info, uid: uid, snapshots: snapshots)
                 let backupURL = Self.demo ? nil : try? Self.autoBackup(backup)
                 DispatchQueue.main.async {
@@ -215,9 +280,11 @@ final class AppModel {
                     vader.connection.onRemoval = { [weak self] in
                         DispatchQueue.main.async { self?.disconnected() }
                     }
-                    vader.connection.onInputReport = { [weak self] report in
+                    let box = self.inputBox, engine = self.engine
+                    vader.connection.onInputReport = { report in
                         guard let state = InputState(report: report) else { return }
-                        self?.inputBox.store(state)
+                        box.store(state)
+                        engine.process(state)
                     }
                     self.info = info
                     self.uid = uid
@@ -226,12 +293,14 @@ final class AppModel {
                     self.hardware = hardware
                     self.dataReport = report
                     self.versions = versions
+                    self.nickname = nickname ?? nil
                     self.saved = snapshots
-                    self.drafts = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.index, ProfileDraft($0)) })
+                    self.resetDrafts()
                     self.selectedProfile = versions.active
                     self.lastBackupURL = backupURL
                     self.state = .connected
                     if self.inputListeners > 0 { self.setStream(true) }
+                    self.updateEngine()
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -247,6 +316,12 @@ final class AppModel {
     }
 
     private func disconnected() {
+        engine.stop()
+        hostEngineRunning = false
+        if engineListening {
+            engineListening = false
+            listen(false)
+        }
         let old = device
         device = nil
         worker.async { old?.close() }
@@ -320,16 +395,27 @@ final class AppModel {
             let snapshot = try device.commit(profile: i, mapping: mapping, lighting: lighting, macros: macros, progress: progress)
             return (snapshot, try device.profileVersions())
         } then: { snapshot, versions in
+            self.hostStore.set(d.host, controller: self.controllerKey, profile: i)
+            try? self.hostStore.save()
             self.replaceSaved(snapshot)
-            self.drafts[i] = ProfileDraft(snapshot)
+            self.drafts[i] = self.makeDraft(snapshot)
             self.versions = versions
             self.notice = "Saved to the controller and verified."
+            self.updateEngine()
         }
     }
 
     func revert() {
         guard let s = savedSnapshot else { return }
-        drafts[selectedProfile] = ProfileDraft(s)
+        drafts[selectedProfile] = makeDraft(s)
+    }
+
+    func makeDraft(_ s: ProfileSnapshot) -> ProfileDraft {
+        ProfileDraft(s, host: savedHost(s.index))
+    }
+
+    private func resetDrafts() {
+        drafts = Dictionary(uniqueKeysWithValues: saved.map { ($0.index, makeDraft($0)) })
     }
 
     private func replaceSaved(_ s: ProfileSnapshot) {
@@ -341,7 +427,7 @@ final class AppModel {
             (try device.readAllSnapshots(progress: progress), try device.profileVersions(), try device.hardwareStatus())
         } then: { snapshots, versions, hardware in
             self.saved = snapshots
-            self.drafts = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.index, ProfileDraft($0)) })
+            self.resetDrafts()
             self.versions = versions
             self.hardware = hardware
         }
@@ -386,6 +472,175 @@ final class AppModel {
         }
     }
 
+    func setPrecision(_ code: Int) {
+        perform("Updating stick precision…") { device, _ in
+            try device.setJoystickPrecision(code)
+            return try device.hardwareStatus()
+        } then: { self.hardware = $0 }
+    }
+
+    func setSensitivity(_ value: Int) {
+        perform("Updating center sensitivity…") { device, _ in
+            try device.setJoystickSensitivity(value)
+            return try device.hardwareStatus()
+        } then: { self.hardware = $0 }
+    }
+
+    func setNickname(_ name: String) {
+        perform("Renaming the controller…") { device, _ in
+            try device.writeNickname(name)
+            return try device.readNickname()
+        } then: { self.nickname = $0 }
+    }
+
+    func checkFirmware() {
+        guard let info, !checkingFirmware else { return }
+        checkingFirmware = true
+        firmwareError = nil
+        Task {
+            do {
+                firmware = try await FirmwareCheck.check(info)
+            } catch {
+                firmwareError = "Could not reach Flydigi's update service: \(error.localizedDescription)"
+            }
+            checkingFirmware = false
+        }
+    }
+
+    // MARK: Profile tools
+
+    /// Writes the factory profile, lighting and macros into the selected slot.
+    func resetSelectedProfile() {
+        let i = selectedProfile
+        perform("Resetting profile \(i + 1)…", showsProgress: true) { device, progress in
+            (try device.resetToFactory(profile: i, progress: progress), try device.profileVersions())
+        } then: { snapshot, versions in
+            self.hostStore.set(HostProfileMappings(), controller: self.controllerKey, profile: i)
+            try? self.hostStore.save()
+            self.replaceSaved(snapshot)
+            self.drafts[i] = self.makeDraft(snapshot)
+            self.versions = versions
+            self.notice = "Profile \(i + 1) is back to factory settings."
+            self.updateEngine()
+        }
+    }
+
+    /// Copies the selected profile's draft into another slot, as unsaved changes there.
+    func copySelectedProfile(to target: Int) {
+        guard let source = draft, target != selectedProfile, var t = drafts[target] else { return }
+        let tag = t.mapping.dataVersion
+        t.mapping = source.mapping
+        t.mapping.dataVersion = tag
+        t.lighting = source.lighting
+        t.lightingColors = source.lightingColors
+        t.lightingEffect = source.lightingEffect
+        t.macros = source.macros
+        t.host = source.host
+        drafts[target] = t
+        selectProfile(target)
+        notice = "Copied into profile \(target + 1). Save to write it to the controller."
+    }
+
+    func profileFile(named name: String) -> ProfileFile? {
+        guard let d = draft else { return nil }
+        return ProfileFile(name: name, deviceType: info?.deviceType ?? 130, mapping: d.mapping,
+                           lighting: d.lighting.isValid ? d.lighting : nil, macroBytes: try? d.macros.encoded(),
+                           host: d.host.isEmpty ? nil : d.host)
+    }
+
+    func saveToLibrary(name: String) {
+        guard let file = profileFile(named: name) else { return }
+        do {
+            try file.saveToLibrary()
+            profileLibrary = ProfileFile.library()
+            notice = "Saved \"\(name)\" to your profile library."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func removeFromLibrary(_ file: ProfileFile) {
+        try? file.removeFromLibrary()
+        profileLibrary = ProfileFile.library()
+    }
+
+    /// Loads a saved profile into the selected slot's draft.
+    func load(_ file: ProfileFile) {
+        guard var d = draft, let mapping = file.mappingProfile else { return }
+        guard mapping.isLayoutSupported else {
+            errorMessage = "That profile uses mapping layout \(mapping.layoutDescription), which OpenVader cannot write."
+            return
+        }
+        let tag = d.mapping.dataVersion
+        d.mapping = mapping
+        d.mapping.dataVersion = tag
+        if let l = file.lightingConfig, l.ledCount == d.lighting.ledCount, l.bytes.count == d.lighting.bytes.count {
+            d.lighting = l
+            let palette = l.paletteGuess
+            d.lightingColors = palette.isEmpty ? d.lightingColors : Array(palette.prefix(5))
+            d.lightingEffect = l.effect ?? .factory
+        }
+        if let m = file.macroStore, m.size == d.macros.size { d.macros = m }
+        d.host = file.host ?? HostProfileMappings()
+        draft = d
+        notice = "Loaded \"\(file.name)\". Save to write it to the controller."
+    }
+
+    // MARK: Macro library
+
+    func saveMacroToLibrary(_ macro: Macro) {
+        macroLibrary.removeAll { $0.name == macro.name && $0.steps == macro.steps }
+        macroLibrary.insert(macro, at: 0)
+        MacroLibrary.save(macroLibrary)
+        notice = "Saved \"\(macro.name)\" to your macro library."
+    }
+
+    /// Puts a macro on another profile's draft (replacing one on the same button).
+    func copyMacro(_ macro: Macro, toProfile target: Int) {
+        guard var d = drafts[target] else { return }
+        d.macros.macros.removeAll { $0.trigger == macro.trigger }
+        guard d.macros.macros.count < MacroStore.maxMacros else {
+            errorMessage = "Profile \(target + 1) already holds \(MacroStore.maxMacros) macros."
+            return
+        }
+        d.macros.macros.append(macro)
+        if d.host.action(for: macro.trigger) != nil { d.host.setAction(nil, for: macro.trigger) }
+        d.mapping.setBinding(ButtonBinding(action: .macro), for: macro.trigger)
+        drafts[target] = d
+        notice = "Copied to profile \(target + 1). Save that profile to write it."
+    }
+
+    func removeMacroFromLibrary(at index: Int) {
+        guard macroLibrary.indices.contains(index) else { return }
+        macroLibrary.remove(at: index)
+        MacroLibrary.save(macroLibrary)
+    }
+
+    // MARK: Keyboard and mouse on the Mac
+
+    var activeHostMappings: HostProfileMappings? {
+        guard let active = versions?.active else { return nil }
+        let m = savedHost(active)
+        return m.isEmpty ? nil : m
+    }
+
+    func requestHostPermission() {
+        HostEngine.requestPermission()
+        hostPermission = HostEngine.hasPermission
+        updateEngine()
+    }
+
+    /// Runs the engine while the running profile has Mac actions and access is granted.
+    func updateEngine() {
+        let mappings = isConnected && hostPermission ? activeHostMappings : nil
+        engine.use(mappings)
+        hostEngineRunning = mappings != nil
+        if hostEngineRunning != engineListening {
+            engineListening = hostEngineRunning
+            listen(hostEngineRunning)
+        }
+    }
+
     // MARK: Backups
 
     func backupNow(to url: URL? = nil) {
@@ -410,9 +665,10 @@ final class AppModel {
             return (try device.readAllSnapshots(), try device.profileVersions())
         } then: { snapshots, versions in
             self.saved = snapshots
-            self.drafts = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.index, ProfileDraft($0)) })
+            self.resetDrafts()
             self.versions = versions
             self.notice = "Restored and verified."
+            self.updateEngine()
         }
     }
 

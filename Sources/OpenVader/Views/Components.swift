@@ -3,6 +3,7 @@ import VaderKit
 
 /// Scrollable page with a title row for profile panes.
 struct Page<Content: View>: View {
+    @Environment(AppModel.self) private var model
     var title: String
     var subtitle: String?
     @ViewBuilder var content: Content
@@ -10,6 +11,10 @@ struct Page<Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if model.section.isProfileSection {
+                    ProfileBar()
+                    Divider()
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.largeTitle.weight(.semibold))
                     if let subtitle {
@@ -17,6 +22,7 @@ struct Page<Content: View>: View {
                     }
                 }
                 LayoutWarning()
+                if [.buttons, .sticks, .gyro].contains(model.section) { HostAccessBanner() }
                 content
             }
             .padding(24)

@@ -13,6 +13,7 @@ struct SticksView: View {
                     StickEditor(
                         side: side,
                         settings: Binding(get: { draft.mapping.stick(side) }, set: { draft.mapping.setStick($0, side) }),
+                        host: Binding(get: { draft.host.stick(side) }, set: { draft.setStickHost($0, side) }),
                         live: side == .left ? model.input.leftStick : model.input.rightStick)
                 }
             }
@@ -24,11 +25,46 @@ struct SticksView: View {
 struct StickEditor: View {
     var side: Side
     @Binding var settings: StickSettings
+    @Binding var host: StickHostSettings?
     var live: SIMD2<Double>
+
+    private enum Use: Hashable { case stick, mouse, wasd, arrows, scroll }
+
+    private var use: Binding<Use> {
+        Binding(get: {
+            switch host?.mode {
+            case nil: .stick
+            case .mouse: .mouse
+            case .scroll: .scroll
+            case .keys(let up, _, _, _, _): up == .w ? .wasd : .arrows
+            }
+        }, set: { u in
+            var h = host ?? StickHostSettings(mode: .mouse(speed: 50))
+            switch u {
+            case .stick: host = nil; return
+            case .mouse: h.mode = .mouse(speed: 50)
+            case .scroll: h.mode = .scroll(speed: 40)
+            case .wasd: h.mode = .wasd
+            case .arrows: h.mode = .arrows
+            }
+            host = h
+        })
+    }
 
     var body: some View {
         Card("\(side.title) stick", symbol: side == .left ? "l.joystick" : "r.joystick") {
-            if !settings.isStick {
+            Picker("Use as", selection: use) {
+                Text("Stick").tag(Use.stick)
+                Section("On the Mac") {
+                    Text("Mouse pointer").tag(Use.mouse)
+                    Text("WASD keys").tag(Use.wasd)
+                    Text("Arrow keys").tag(Use.arrows)
+                    Text("Scrolling").tag(Use.scroll)
+                }
+            }
+            if let h = host {
+                hostEditor(h)
+            } else if !settings.isStick {
                 Label("This stick is mapped to keyboard or mouse output by Flydigi's Windows app, so it has no curve here.",
                       systemImage: "info.circle")
                     .foregroundStyle(.secondary)
@@ -69,6 +105,32 @@ struct StickEditor: View {
                     .font(.caption)
                 }
             }
+        }
+    }
+}
+
+extension StickEditor {
+    @ViewBuilder
+    func hostEditor(_ h: StickHostSettings) -> some View {
+        Text("Games stop seeing this stick while OpenVader uses it on the Mac.")
+            .font(.caption).foregroundStyle(.secondary)
+        switch h.mode {
+        case .mouse(let speed):
+            ValueSlider(title: "Pointer speed", value: Binding(get: { speed }, set: { host?.mode = .mouse(speed: $0) }),
+                        range: 1...100)
+        case .scroll(let speed):
+            ValueSlider(title: "Scroll speed", value: Binding(get: { speed }, set: { host?.mode = .scroll(speed: $0) }),
+                        range: 1...100)
+        case .keys(let up, let down, let left, let right, let eight):
+            Toggle("Diagonals press two keys", isOn: Binding(get: { eight }, set: {
+                host?.mode = .keys(up: up, down: down, left: left, right: right, eightWay: $0)
+            }))
+        }
+        ValueSlider(title: "Dead zone", value: Binding(get: { h.deadZone }, set: { host?.deadZone = $0 }),
+                    range: 0...50, unit: " %")
+        HStack(spacing: 14) {
+            StickDot(value: live, deadZone: Double(h.deadZone) / 100).frame(width: 96, height: 96)
+            Text(String(format: "x %+.2f  y %+.2f", live.x, live.y)).font(.caption).monospacedDigit()
         }
     }
 }

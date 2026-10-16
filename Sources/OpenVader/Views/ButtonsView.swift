@@ -7,7 +7,7 @@ struct ButtonsView: View {
     @State private var selected: ControllerKey = .m1
 
     private var remapped: Set<ControllerKey> {
-        Set(ControllerKey.remappable.filter { !draft.mapping.binding(for: $0).isDefault })
+        Set(ControllerKey.remappable.filter { !draft.mapping.binding(for: $0).isDefault || draft.host.action(for: $0) != nil })
     }
 
     var body: some View {
@@ -41,12 +41,13 @@ struct ButtonsView: View {
                         GridRow {
                             ForEach(row) { key in
                                 let binding = draft.mapping.binding(for: key)
+                                let host = draft.host.action(for: key)
                                 Button { selected = key } label: {
                                     HStack(spacing: 6) {
                                         Text(key.name).fontWeight(selected == key ? .bold : .regular)
                                         Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
-                                        Text(binding.describe(for: key))
-                                            .foregroundStyle(binding.isDefault ? .secondary : Color.orange)
+                                        Text(host.map { "\($0.title) (Mac)" } ?? binding.describe(for: key))
+                                            .foregroundStyle(binding.isDefault && host == nil ? .secondary : Color.orange)
                                     }
                                     .lineLimit(1)
                                 }
@@ -59,6 +60,7 @@ struct ButtonsView: View {
                     Spacer()
                     Button("Reset All Buttons") {
                         for key in ControllerKey.remappable where draft.mapping.binding(for: key).action != .macro {
+                            if draft.host.action(for: key) != nil { draft.setHostAction(nil, for: key) }
                             draft.mapping.setBinding(ButtonBinding(), for: key)
                         }
                     }
@@ -87,26 +89,42 @@ struct ButtonInspector: View {
         Binding(get: { draft.mapping.binding(for: key) }, set: { draft.mapping.setBinding($0, for: key) })
     }
 
+    private var hostAction: HostAction? { draft.host.action(for: key) }
+
     private enum Choice: Hashable {
         case standard, target(ControllerKey), macro, other
+        case key, mouse(MouseButton), scroll(ScrollDirection)
     }
 
     private var choice: Binding<Choice> {
         Binding(get: {
+            switch hostAction {
+            case .key: return .key
+            case .mouse(let b): return .mouse(b)
+            case .scroll(let d): return .scroll(d)
+            case nil: break
+            }
             switch binding.wrappedValue.action {
-            case .standard: .standard
-            case .remap(let k): .target(k)
-            case .macro: .macro
-            default: .other
+            case .standard: return .standard
+            case .remap(let k): return .target(k)
+            case .macro: return .macro
+            default: return .other
             }
         }, set: { new in
-            var b = binding.wrappedValue
             switch new {
-            case .standard: b.action = .standard
-            case .target(let k): b.action = k == key ? .standard : .remap(k)
+            case .key:
+                if case .key = hostAction { return }
+                draft.setHostAction(.key(KeyStroke(0x31)), for: key)
+            case .mouse(let b): draft.setHostAction(.mouse(b), for: key)
+            case .scroll(let d): draft.setHostAction(.scroll(d), for: key)
+            case .standard, .target:
+                if hostAction != nil { draft.setHostAction(nil, for: key) }
+                var b = binding.wrappedValue
+                if case .target(let k) = new, k != key { b.action = .remap(k) } else { b.action = .standard }
+                if b.action == .keyboardMouse { b.action = .standard }
+                binding.wrappedValue = b
             case .macro, .other: return
             }
-            binding.wrappedValue = b
         })
     }
 
@@ -121,35 +139,58 @@ struct ButtonInspector: View {
                 Picker("Acts as", selection: choice) {
                     Text(ControllerKey.targets.contains(key) ? "\(key.name) (default)" : "Nothing extra (default)")
                         .tag(Choice.standard)
-                    Divider()
-                    ForEach(ControllerKey.targets) { t in
-                        Text(t.name).tag(Choice.target(t))
+                    Section("Controller button") {
+                        ForEach(ControllerKey.targets) { t in
+                            Text(t.name).tag(Choice.target(t))
+                        }
+                    }
+                    Section("Keyboard and mouse (Mac)") {
+                        Text("Keyboard key…").tag(Choice.key)
+                        ForEach(MouseButton.allCases, id: \.self) { Text($0.title).tag(Choice.mouse($0)) }
+                        ForEach([ScrollDirection.up, .down], id: \.self) { Text($0.title).tag(Choice.scroll($0)) }
                     }
                     if case .other = choice.wrappedValue {
                         Text(binding.wrappedValue.describe(for: key)).tag(Choice.other)
                     }
                 }
 
-                Divider()
-                Toggle("Turbo (rapid fire)", isOn: Binding(
-                    get: { binding.wrappedValue.turbo != nil },
-                    set: { on in binding.wrappedValue.turbo = on ? ButtonBinding.Turbo() : nil }))
-                if let turbo = binding.wrappedValue.turbo {
-                    ValueSlider(title: "Speed", value: Binding(
-                        get: { turbo.frequency },
-                        set: { binding.wrappedValue.turbo?.frequency = $0 }), range: 1...20, unit: " / s")
-                    Picker("Fires", selection: Binding(
-                        get: { turbo.mode }, set: { binding.wrappedValue.turbo?.mode = $0 })) {
-                        ForEach(ButtonBinding.TurboMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                if case .key(let stroke) = hostAction {
+                    KeyStrokePicker(stroke: Binding(get: { stroke }, set: { draft.setHostAction(.key($0), for: key) }))
+                }
+                if hostAction != nil {
+                    Text("Games no longer see this button; OpenVader presses the key or mouse button on the Mac instead.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                } else if binding.wrappedValue.action == .keyboardMouse {
+                    Text("Set to a keyboard or mouse action by Flydigi's Windows app. Pick a Mac action to use it here.")
+                        .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+
+                if hostAction == nil {
+                    Divider()
+                    Toggle("Turbo (rapid fire)", isOn: Binding(
+                        get: { binding.wrappedValue.turbo != nil },
+                        set: { on in binding.wrappedValue.turbo = on ? ButtonBinding.Turbo() : nil }))
+                    if let turbo = binding.wrappedValue.turbo {
+                        ValueSlider(title: "Speed", value: Binding(
+                            get: { turbo.frequency },
+                            set: { binding.wrappedValue.turbo?.frequency = $0 }), range: 1...20, unit: " / s")
+                        Picker("Fires", selection: Binding(
+                            get: { turbo.mode }, set: { binding.wrappedValue.turbo?.mode = $0 })) {
+                            ForEach(ButtonBinding.TurboMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        Text("Turbo needs the Turbo switch on under Controller.").font(.caption).foregroundStyle(.secondary)
                     }
-                    .pickerStyle(.segmented)
                 }
             }
 
             HStack {
                 Spacer()
-                Button("Reset") { binding.wrappedValue = ButtonBinding() }
-                    .disabled(binding.wrappedValue.isDefault || binding.wrappedValue.action == .macro)
+                Button("Reset") {
+                    if hostAction != nil { draft.setHostAction(nil, for: key) }
+                    binding.wrappedValue = ButtonBinding()
+                }
+                .disabled((binding.wrappedValue.isDefault && hostAction == nil) || binding.wrappedValue.action == .macro)
             }
         }
     }

@@ -106,13 +106,17 @@ public enum DeviceFeature: UInt8, CaseIterable, Sendable, Identifiable {
             "Hold Fn and press A, B, X or Y on the controller to switch between the four profiles."
         case .xboxHomeButton: "Use the Home button as the Xbox Guide button."
         case .motionDebounce: "Filters small gyro jitter while the controller is held still."
-        case .turbo: "Enables the Turbo button on the back of the controller."
-        case .joystickDebounce: "Filters noise from the sticks near the center."
-        case .joystickAutoCalibration: "Re-centers the sticks automatically when they are idle."
-        case .joystickRebound: "Suppresses the bounce past center when a stick is released."
+        case .turbo: "Master switch for turbo. Buttons set to turbo only fire repeatedly while this is on."
+        case .joystickDebounce:
+            "Steadies the sticks at rest. Turning it off makes tiny movements register but adds jitter, and stops auto-calibration."
+        case .joystickAutoCalibration: "Re-centers the sticks automatically when they are idle. Needs stick debounce."
+        case .joystickRebound: "Filters the reverse flick a stick's spring causes when you let go."
         case .screenStatusBar, .screenOff, .audio: ""
         }
     }
+
+    /// A feature that only works while another one is on.
+    public var requires: DeviceFeature? { self == .joystickAutoCalibration ? .joystickDebounce : nil }
 
     var bytes: (supported: Int, enabled: Int, bit: Int) {
         let index = Int(rawValue) - 1
@@ -137,6 +141,18 @@ public struct HardwareStatus: Sendable, Equatable {
         (1, "1 minute"), (5, "5 minutes"), (15, "15 minutes"),
         (60, "1 hour"), (180, "3 hours"), (0, "Never"),
     ]
+
+    /// Stick precision as Flydigi's app offers it: wire code and bit depth.
+    /// The codes are an enum index, not the bit depth.
+    public static let precisionChoices: [(code: Int, label: String)] = [
+        (1, "8 bit"), (4, "9 bit"), (2, "10 bit"), (5, "11 bit"), (3, "12 bit"),
+    ]
+
+    /// Center sensitivity; a larger wire value is slower.
+    public static let sensitivityChoices: [(value: Int, label: String)] = [(14, "Fast"), (17, "Medium"), (19, "Slow")]
+
+    public var precisionAdjustable: Bool { joystickPrecision != 0 }
+    public var sensitivityAdjustable: Bool { joystickSensitivity != 0 }
 
     public init(reply: Reply) {
         raw = reply.raw

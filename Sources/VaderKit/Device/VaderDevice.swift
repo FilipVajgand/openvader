@@ -94,6 +94,49 @@ public final class VaderDevice: @unchecked Sendable {
         try send(.sleepTime, [UInt8(minutes)], timeout: 0.6)
     }
 
+    /// Stick precision; see `HardwareStatus.precisionChoices`.
+    public func setJoystickPrecision(_ code: Int) throws {
+        guard HardwareStatus.precisionChoices.contains(where: { $0.code == code }) else {
+            throw VaderError.invalidArgument("Unsupported stick precision \(code).")
+        }
+        try send(.joystickPrecision, [UInt8(code)], timeout: 0.6)
+    }
+
+    /// Center sensitivity, 14 (fast) ... 20 (slow).
+    public func setJoystickSensitivity(_ value: Int) throws {
+        guard (14...20).contains(value) else { throw VaderError.invalidArgument("Sensitivity must be 14...20.") }
+        try send(.joystickSensitivity, [UInt8(value)], timeout: 0.6)
+    }
+
+    /// The controller's own name, or nil if it has none.
+    public func readNickname() throws -> String? {
+        let reply = try send(.readNickname, timeout: 0.6)
+        let bytes = Array(reply.raw[5..<31].prefix { $0 != 0 && $0 != 0xFF })
+        guard !bytes.isEmpty, let name = String(bytes: bytes, encoding: .utf8),
+              name.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) else { return nil }
+        return name
+    }
+
+    /// Names the controller (1...26 bytes of UTF-8).
+    ///
+    /// The pad stores one byte past the name, so this frame deliberately has
+    /// no checksum: a checksum there would become part of the name.
+    public func writeNickname(_ name: String) throws {
+        var bytes = Array(name.utf8)
+        while bytes.count > 26 { bytes = Array(String(decoding: bytes, as: UTF8.self).dropLast().utf8) }
+        guard !bytes.isEmpty else { throw VaderError.invalidArgument("The name cannot be empty.") }
+        var frame = [UInt8](repeating: 0, count: Frame.size)
+        frame[0] = 0x5A
+        frame[1] = 0xA5
+        frame[2] = Command.writeNickname.rawValue
+        frame[3] = UInt8(2 + bytes.count)
+        for (i, b) in bytes.enumerated() { frame[4 + i] = b }
+        _ = try? sendFrame(frame, expecting: Command.writeNickname.rawValue, timeout: 0.6, retries: 1)
+        guard try readNickname() == String(decoding: bytes, as: UTF8.self) else {
+            throw VaderError.verificationFailed("the controller did not keep the new name")
+        }
+    }
+
     public func dataReportStatus() throws -> DataReportStatus {
         DataReportStatus(reply: try send(.dataReportStatus, timeout: 0.6, retries: 5))
     }
@@ -313,6 +356,13 @@ public final class VaderDevice: @unchecked Sendable {
             // Put the XInput profile back the way it was (keyboard bindings included).
             try writeBlob(start: .writeMappingStart, pack: .writeMappingPack, profile: profile, bytes: current.bytes)
         }
+    }
+
+    /// Puts one profile back to exactly what the factory stores.
+    @discardableResult
+    public func resetToFactory(profile: Int, progress: ((Double) -> Void)? = nil) throws -> ProfileSnapshot {
+        try commit(profile: profile, mapping: FactoryData.mapping(profile: profile), lighting: FactoryData.lighting,
+                   rawMacros: FactoryData.macroBytes, tag: ProfileVersions.unwritten, progress: progress)
     }
 
     // MARK: Backup

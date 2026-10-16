@@ -89,18 +89,25 @@ struct GyroView: View {
         Page(title: "Gyro aiming",
              subtitle: "The controller turns its motion sensor into stick movement by itself, so gyro aiming works in any game, including over Bluetooth and on a Mac, with nothing running in the background.") {
             HStack(alignment: .top, spacing: 18) {
-                Card("Motion to stick", symbol: "gyroscope") {
-                    Picker("Drive", selection: g.target) {
-                        ForEach(GyroSettings.Target.allCases.filter { $0 != .mouse || g.wrappedValue.target == .mouse }) {
-                            Text($0.title).tag($0)
+                Card("Motion control", symbol: "gyroscope") {
+                    Picker("Drive", selection: Binding(get: { g.wrappedValue.target }, set: { t in
+                        if t == .mouse {
+                            draft.setGyroMouse(draft.host.gyro ?? GyroMouseSettings())
+                        } else {
+                            if draft.host.gyro != nil { draft.setGyroMouse(nil) }
+                            g.wrappedValue.target = t
                         }
+                    })) {
+                        Text("Off").tag(GyroSettings.Target.off)
+                        Text("Left stick").tag(GyroSettings.Target.leftStick)
+                        Text("Right stick").tag(GyroSettings.Target.rightStick)
+                        Text("Mouse (Mac)").tag(GyroSettings.Target.mouse)
                     }
                     .pickerStyle(.segmented)
                     if g.wrappedValue.target == .mouse {
-                        Text("Mouse mode needs Flydigi's Windows app running; on a Mac the controller ignores it.")
-                            .font(.caption).foregroundStyle(.orange)
-                    }
-                    if g.wrappedValue.target != .off {
+                        GyroMouseEditor(settings: Binding(
+                            get: { draft.host.gyro ?? GyroMouseSettings() }, set: { draft.setGyroMouse($0) }))
+                    } else if g.wrappedValue.target != .off {
                         KeyPicker(title: "Activate with", key: g.enableKey, choices: ControllerKey.gyroEnableKeys)
                         Picker("Activation", selection: g.activation) {
                             ForEach(GyroSettings.Activation.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -123,6 +130,28 @@ struct GyroView: View {
             }
         }
         .listensToInput()
+    }
+}
+
+struct GyroMouseEditor: View {
+    @Binding var settings: GyroMouseSettings
+
+    var body: some View {
+        Text("Tilt and turn the controller to move the Mac's pointer. Runs in OpenVader while the controller is on the receiver or cable.")
+            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        KeyPicker(title: "Activate with", key: $settings.enableKey, choices: ControllerKey.gyroEnableKeys)
+            .help("None keeps the gyro pointer on all the time")
+        if settings.enableKey != nil {
+            Picker("Activation", selection: $settings.activation) {
+                ForEach(GyroSettings.Activation.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+        }
+        ValueSlider(title: "Sensitivity", value: $settings.sensitivity, range: 1...100)
+        HStack {
+            Toggle("Invert horizontal", isOn: $settings.invertX)
+            Toggle("Invert vertical", isOn: $settings.invertY)
+        }
     }
 }
 

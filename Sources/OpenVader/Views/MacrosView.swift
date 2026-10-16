@@ -45,6 +45,20 @@ struct MacrosView: View {
                         }
                     }
                     .disabled(draft.macros.macros.count >= MacroStore.maxMacros)
+                    if !model.macroLibrary.isEmpty {
+                        Menu("Add from Library") {
+                            ForEach(Array(model.macroLibrary.enumerated()), id: \.offset) { i, m in
+                                Menu(m.name.isEmpty ? "Untitled" : m.name) {
+                                    ForEach(Self.triggers.filter { draft.macros.macro(for: $0) == nil }) { key in
+                                        Button("On \(key.name)") { add(m, on: key) }
+                                    }
+                                    Divider()
+                                    Button("Remove from Library", role: .destructive) { model.removeMacroFromLibrary(at: i) }
+                                }
+                            }
+                        }
+                        .disabled(draft.macros.macros.count >= MacroStore.maxMacros)
+                    }
                 }
                 .frame(width: 300)
 
@@ -63,6 +77,16 @@ struct MacrosView: View {
 
     private func create(on key: ControllerKey) {
         draft.macros.macros.append(Macro(trigger: key, name: "Macro \(key.name)", steps: Macro.tap([.a])))
+        if draft.host.action(for: key) != nil { draft.host.setAction(nil, for: key) }
+        draft.mapping.setBinding(ButtonBinding(action: .macro), for: key)
+        editing = key
+    }
+
+    private func add(_ macro: Macro, on key: ControllerKey) {
+        var m = macro
+        m.trigger = key
+        draft.macros.macros.append(m)
+        if draft.host.action(for: key) != nil { draft.host.setAction(nil, for: key) }
         draft.mapping.setBinding(ButtonBinding(action: .macro), for: key)
         editing = key
     }
@@ -87,7 +111,19 @@ struct MacroEditor: View {
 
     var body: some View {
         Card("Macro on \(macro.trigger.name)", symbol: "repeat.circle",
-             trailing: AnyView(Button("Delete", role: .destructive, action: onDelete))) {
+             trailing: AnyView(HStack {
+                 Menu("Copy") {
+                     Button("Save to Library") { model.saveMacroToLibrary(macro) }
+                     Divider()
+                     ForEach(0..<4, id: \.self) { i in
+                         if i != model.selectedProfile {
+                             Button("To Profile \(i + 1) – \(model.profileName(i))") { model.copyMacro(macro, toProfile: i) }
+                         }
+                     }
+                 }
+                 .fixedSize()
+                 Button("Delete", role: .destructive, action: onDelete)
+             })) {
             TextField("Name", text: Binding(get: { macro.name }, set: { name in
                 // 20 bytes of UTF-8 fit on the controller; never cut a character in half.
                 var trimmed = name
