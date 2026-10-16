@@ -61,12 +61,23 @@ struct ProfileDraft: Equatable {
     }
 
     /// Rebuilds the lighting frames from the editor's effect and colours.
-    /// Keeps the rainbow's current direction unless a new one is given.
-    mutating func setLighting(effect: LightingEffect, colors: [LEDColor], direction: FlowDirection? = nil) {
+    /// Keeps the current direction and frame skipping unless new ones are given.
+    mutating func setLighting(effect: LightingEffect, colors: [LEDColor], direction: FlowDirection? = nil,
+                              stride: Int? = nil) {
         lightingEffect = effect
         lightingColors = colors
         guard effect != .factory, lighting.isValid else { return }
-        lighting.apply(effect, colors: colors, direction: direction ?? lighting.direction ?? .left)
+        lighting.apply(effect, colors: colors, direction: direction ?? lighting.direction ?? .left,
+                       stride: stride ?? lighting.stride)
+    }
+
+    /// Speed levels from `LightingSpeed`: a frame time, plus frame skipping above level 10.
+    mutating func setLightingSpeed(level: Int) {
+        let s = LightingSpeed.setting(level: level)
+        lighting.cycleTime = s.frameTime
+        if lightingEffect.canSkipFrames, s.stride != lighting.stride {
+            setLighting(effect: lightingEffect, colors: lightingColors, stride: s.stride)
+        }
     }
 }
 

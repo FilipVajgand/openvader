@@ -150,6 +150,34 @@ import Testing
         }
     }
 
+    @Test(arguments: [(10, 10), (12, 10)])
+    func frameSkippingReadsBack(leds: Int, frames: Int) {
+        let green = LEDColor(red: 0, green: 255, blue: 0)
+        for effect in LightingEffect.editable where effect.canSkipFrames {
+            for stride in 1...LightingSpeed.maxStride {
+                for direction in effect.hasDirection ? FlowDirection.allCases : [.left] {
+                    var l = blank(leds: leds, frames: frames)
+                    l.apply(effect, colors: [green], direction: direction, stride: stride)
+                    #expect(l.effect == effect && l.stride == stride, "\(effect) stride \(stride) \(direction)")
+                    if effect.hasDirection { #expect(l.direction == direction) }
+                }
+            }
+        }
+    }
+
+    @Test func speedLevelsRoundTrip() {
+        for level in LightingSpeed.levels(for: .flow) {
+            let s = LightingSpeed.setting(level: level)
+            #expect(LightingSpeed.level(frameTime: s.frameTime, stride: s.stride) == level)
+        }
+        #expect(LightingSpeed.levels(for: .flow) == 1...12)
+        #expect(LightingSpeed.levels(for: .breathing) == 1...10)
+        #expect(LightingSpeed.setting(level: 10) == (1, 1))
+        #expect(LightingSpeed.setting(level: 12) == (1, 3))
+        #expect(LightingSpeed.level(frameTime: 4, stride: 1) == 8, "the factory frame time")
+        #expect(LightingSpeed.level(frameTime: 100, stride: 1) == 1)
+    }
+
     @Test func cometDirectionRoundTrips() {
         var l = blank()
         let green = LEDColor(red: 0, green: 255, blue: 0)

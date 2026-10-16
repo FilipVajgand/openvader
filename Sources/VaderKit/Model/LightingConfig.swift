@@ -104,10 +104,37 @@ public enum LightingEffect: String, Sendable, CaseIterable, Codable, Identifiabl
 
     public var isAnimated: Bool { self != .steady && self != .off }
     public var hasDirection: Bool { self == .flow || self == .comet }
+    /// Moving effects can advance several steps per frame, which runs them faster than the shortest frame time.
+    public var canSkipFrames: Bool { self == .flow || self == .rainbowFade || self == .comet || self == .scanner }
 
     /// Effects the editor offers. Factory frames can only be kept, not generated.
     public static let editable: [LightingEffect] =
         [.steady, .breathing, .strobe, .gradient, .rainbowFade, .flow, .comet, .scanner, .fire, .off]
+}
+
+/// Speed as levels that feel evenly spaced. The controller stores a frame time (bigger is slower), so levels
+/// 1-10 step through frame times about a third apart, ending at 1, the shortest. Moving effects add levels
+/// that keep frame time 1 and advance 2 or 3 steps per frame.
+public enum LightingSpeed {
+    public static let frameTimes = [50, 36, 26, 18, 13, 9, 6, 4, 2, 1]
+    public static let maxStride = 3
+
+    public static func levels(for effect: LightingEffect) -> ClosedRange<Int> {
+        1...(frameTimes.count + (effect.canSkipFrames ? maxStride - 1 : 0))
+    }
+
+    public static func setting(level: Int) -> (frameTime: Int, stride: Int) {
+        let l = max(1, level)
+        return l <= frameTimes.count ? (frameTimes[l - 1], 1) : (1, min(maxStride, l - frameTimes.count + 1))
+    }
+
+    /// The level closest to a stored frame time, comparing ratios so that 3 sits between 4 and 2.
+    public static func level(frameTime: Int, stride: Int) -> Int {
+        if stride > 1 { return frameTimes.count + min(stride, maxStride) - 1 }
+        let t = log(Double(max(1, frameTime)))
+        let nearest = frameTimes.indices.min { abs(log(Double(frameTimes[$0])) - t) < abs(log(Double(frameTimes[$1])) - t) }
+        return (nearest ?? 0) + 1
+    }
 }
 
 /// Which way the rainbow travels along the light bar. LED 0 is the left end.
@@ -146,13 +173,11 @@ public struct LightingConfig: Sendable, Equatable {
         case 6: return .off
         case 7: return .factory
         case 2: return reproduces(.strobe, colors: strobeColors) ? .strobe : .breathing
-        case 3: return reproduces(.rainbowFade, colors: []) ? .rainbowFade : .gradient
+        case 3: return motion(of: .rainbowFade) != nil ? .rainbowFade : .gradient
         case 1:
             if reproduces(.fire, colors: []) { return .fire }
-            if reproduces(.scanner, colors: [headColor]) { return .scanner }
-            if FlowDirection.allCases.contains(where: { reproduces(.comet, colors: [headColor], direction: $0) }) {
-                return .comet
-            }
+            if motion(of: .scanner) != nil { return .scanner }
+            if motion(of: .comet) != nil { return .comet }
             return .flow
         default: return nil
         }
@@ -167,9 +192,10 @@ public struct LightingConfig: Sendable, Equatable {
     private var strobeColors: [LEDColor] { [color(frame: 0, led: 0), color(frame: frameCount / 2, led: 0)] }
 
     /// True when generating `effect` would give exactly these frames and loop window.
-    private func reproduces(_ effect: LightingEffect, colors: [LEDColor], direction: FlowDirection = .left) -> Bool {
+    private func reproduces(_ effect: LightingEffect, colors: [LEDColor], direction: FlowDirection = .left,
+                            stride: Int = 1) -> Bool {
         var copy = self
-        copy.apply(effect, colors: colors, direction: direction)
+        copy.apply(effect, colors: colors, direction: direction, stride: stride)
         return copy.bytes[2...4] == bytes[2...4] && copy.bytes[Self.headerSize...] == bytes[Self.headerSize...]
     }
 
@@ -224,25 +250,44 @@ public struct LightingConfig: Sendable, Equatable {
         return out
     }
 
-    /// Which way a rainbow flow or comet travels, read back from its frames; nil for other effects.
-    public var direction: FlowDirection? {
-        switch effect {
-        case .flow:
+    /// The direction and steps per frame that a moving effect's frames were generated with.
+    private func motion(of effect: LightingEffect) -> (direction: FlowDirection, stride: Int)? {
+        if effect == .flow {
             guard frameCount > 1, let h0 = color(frame: 0, led: 0).hue, let h1 = color(frame: 1, led: 0).hue
             else { return nil }
             // A left flow raises each LED's hue from frame to frame (colours move towards LED 0).
             let step = (h1 - h0 + 1).truncatingRemainder(dividingBy: 1)
             guard step > 0.01, step < 0.99 else { return nil }
-            return step < 0.5 ? .left : .right
-        case .comet:
-            return FlowDirection.allCases.first { reproduces(.comet, colors: [headColor], direction: $0) }
-        default:
-            return nil
+            let stride = max(1, Int((min(step, 1 - step) * Double(frameCount)).rounded()))
+            return (step < 0.5 ? .left : .right, stride)
         }
+        let directions: [FlowDirection] = effect == .comet ? FlowDirection.allCases : [.left]
+        for stride in 1...LightingSpeed.maxStride {
+            for d in directions where reproduces(effect, colors: [headColor], direction: d, stride: stride) {
+                return (d, stride)
+            }
+        }
+        return nil
     }
 
+    /// Which way a rainbow flow or comet travels, read back from its frames; nil for other effects.
+    public var direction: FlowDirection? {
+        guard let e = effect, e.hasDirection else { return nil }
+        return motion(of: e)?.direction
+    }
+
+    /// How many steps a moving effect advances per frame; 1 for everything else.
+    public var stride: Int {
+        guard let e = effect, e.canSkipFrames else { return 1 }
+        return motion(of: e)?.stride ?? 1
+    }
+
+    /// The speed level (see `LightingSpeed`) of the stored frame time and frame skipping.
+    public var speedLevel: Int { LightingSpeed.level(frameTime: cycleTime, stride: stride) }
+
     /// Rebuilds the frames for an effect, keeping the header geometry.
-    public mutating func apply(_ effect: LightingEffect, colors: [LEDColor], direction: FlowDirection = .left) {
+    public mutating func apply(_ effect: LightingEffect, colors: [LEDColor], direction: FlowDirection = .left,
+                               stride: Int = 1) {
         guard isValid, effect != .factory else { return }
         let frames = frameCount
         for f in 0..<frames { fill(frame: f, with: .black) }
@@ -251,6 +296,9 @@ public struct LightingConfig: Sendable, Equatable {
         bytes[8] = effect.ledType
         var palette = colors.isEmpty ? [LEDColor(red: 0, green: 120, blue: 255)] : colors
         let lastFrame = UInt8(max(0, frames - 1))
+        // Steps per frame for moving effects. Whole numbers keep the loop seamless: after the last frame the
+        // pattern has moved a whole number of cycles.
+        let k = Double(effect.canSkipFrames ? max(1, min(stride, LightingSpeed.maxStride)) : 1)
         switch effect {
         case .steady:
             fill(frame: 0, with: palette[0])
@@ -269,7 +317,7 @@ public struct LightingConfig: Sendable, Equatable {
             bytes[4] = UInt8(palette.count - 1)
         case .flow:
             // Each frame shifts the hue wheel one step; the sign decides which end the colours travel to.
-            let step = direction == .left ? 1.0 : -1.0
+            let step = direction == .left ? k : -k
             for f in 0..<frames {
                 for led in 0..<ledCount {
                     let hue = Double(led) / Double(ledCount) + step * Double(f) / Double(frames)
@@ -285,12 +333,12 @@ public struct LightingConfig: Sendable, Equatable {
             bytes[4] = lastFrame
         case .rainbowFade:
             // The whole bar is one colour that fades around the hue wheel.
-            for f in 0..<frames { fill(frame: f, with: .hsv(Double(f) / Double(frames), 1, 1)) }
+            for f in 0..<frames { fill(frame: f, with: .hsv(k * Double(f) / Double(frames), 1, 1)) }
             bytes[4] = lastFrame
         case .comet:
             // A bright head with a fading tail runs along the bar and wraps around.
             for f in 0..<frames {
-                let h = Int((Double(f) * Double(ledCount) / Double(frames)).rounded()) % ledCount
+                let h = Int((k * Double(f) * Double(ledCount) / Double(frames)).rounded()) % ledCount
                 for (k, level) in [1.0, 0.35, 0.12].enumerated() {
                     // Going left the head counts down and the tail trails to its right; going right, the reverse.
                     let led = direction == .left ? (ledCount - 1 - h + k) % ledCount : (h - k + ledCount) % ledCount
@@ -302,7 +350,7 @@ public struct LightingConfig: Sendable, Equatable {
             // A light sweeping out and back, sampled evenly along the round trip.
             let trip = Double(2 * (ledCount - 1))
             for f in 0..<frames {
-                let p = Double(f) * trip / Double(frames)
+                let p = (k * Double(f) * trip / Double(frames)).truncatingRemainder(dividingBy: trip)
                 let pos = Int((p <= Double(ledCount - 1) ? p : trip - p).rounded())
                 for (d, level) in [(0, 1.0), (-1, 0.25), (1, 0.25)] where (0..<ledCount).contains(pos + d) {
                     setColor(palette[0].scaled(level), frame: f, led: pos + d)

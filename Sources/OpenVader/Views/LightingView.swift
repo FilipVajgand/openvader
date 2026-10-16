@@ -94,11 +94,15 @@ struct LightingView: View {
                                 get: { draft.lighting.brightness }, set: { draft.lighting.brightness = $0 }),
                                 range: 0...100, unit: " %")
                             if draft.lightingEffect.isAnimated {
+                                let levels = LightingSpeed.levels(for: draft.lightingEffect)
                                 ValueSlider(title: "Speed", value: Binding(
-                                    get: { 256 - draft.lighting.cycleTime }, set: { draft.lighting.cycleTime = 256 - $0 }),
-                                    range: 156...255,
-                                    help: "Frame time stored on the controller; smaller is faster.",
-                                    format: { "\(256 - $0)" })
+                                    get: { min(draft.lighting.speedLevel, levels.upperBound) },
+                                    set: { draft.setLightingSpeed(level: $0) }),
+                                    range: levels,
+                                    help: draft.lightingEffect.canSkipFrames
+                                        ? "Each step is about a third faster. 10 is the controller's quickest frame time; 11 and 12 skip frames to go faster still."
+                                        : "Each step is about a third faster. 10 is the controller's quickest frame time.",
+                                    format: { "\($0)" })
                             }
                         }
                     }
