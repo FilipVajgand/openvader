@@ -51,9 +51,12 @@ struct DetailView: View {
 
     var body: some View {
         if section.isProfileSection {
-            if model.drafts[model.selectedProfile] != nil {
+            if let current = model.drafts[model.selectedProfile] {
                 let i = model.selectedProfile
-                let draft = Binding(get: { model.drafts[i]! }, set: { model.drafts[i] = $0 })
+                // A disconnect clears the drafts while this page may still be drawing: fall back to the last
+                // value rather than crash, and never bring a cleared draft back.
+                let draft = Binding(get: { model.drafts[i] ?? current },
+                                    set: { if model.drafts[i] != nil { model.drafts[i] = $0 } })
                 profilePane(draft).id(i)
             } else {
                 ContentUnavailableView("Profile not loaded", systemImage: "questionmark.folder")

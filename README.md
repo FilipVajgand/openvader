@@ -42,7 +42,7 @@ a Switch or a PC.
 | **Triggers** | Physical travel window (hair trigger), trigger-motor vibration strength | controller |
 | **Gyro** | Motion to left or right stick, activation key (hold or toggle), sensitivity, dead zone | controller |
 | **Vibration** | Grip motor on/off, intensity window and gain per side; test all four motors | controller |
-| **Lighting** | Steady, breathing, colour cycle, rainbow flow or off; colours, brightness, speed | controller |
+| **Lighting** | Steady, breathing, strobe, colour cycle, rainbow fade, rainbow flow (left or right), comet, scanner, fire or off; colours, brightness, speed | controller |
 | **Macros** | Up to 10 per profile, recorded live from the controller or edited step by step; a macro library and copying between profiles | controller |
 | **Controller** | Name, sleep timer, stick precision and centre sensitivity, quick profile switching, turbo, stick debounce/auto-calibration/snap-back filter, Steam & SDL takeover, firmware update check | controller |
 | **Keyboard & mouse** | Buttons as keys, clicks or scrolling; sticks as pointer, WASD, arrows or scrolling; gyro as pointer (what Space Station does on Windows) | Mac, while OpenVader runs |

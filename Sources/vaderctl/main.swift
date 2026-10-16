@@ -16,7 +16,7 @@ let usage = """
       restore <file.json> [1-4]    write a backup back, optionally one profile
       activate <1-4>               switch the running profile
       remap <1-4> <button> <target|default> [turbo <1-20>]
-      light <1-4> <steady|breathing|gradient|flow|off> [#RRGGBB ...] [brightness=0-100] [speed=1-255]
+      light <1-4> <steady|breathing|strobe|gradient|rainbowFade|flow|comet|scanner|fire|off> [#RRGGBB ...] [brightness=0-100] [speed=1-255] [direction=left|right]
       stick <1-4> <left|right> [deadzone=0-100] [outer=0-100] [curve=linear|instant|delayed] [circular=on|off]
       trigger <1-4> <left|right> <start 0-255> <end 0-255>
       gyro <1-4> <off|left|right> [key=LT] [hold|toggle] [sensitivity=0-100] [deadzone=0-100]
@@ -235,16 +235,17 @@ func run(_ args: [String]) throws {
 
     case "light":
         let p = try profileArg(args, 1)
-        guard args.count > 2, let effect = ["steady": LightingEffect.steady, "breathing": .breathing, "gradient": .gradient,
-                                            "flow": .flow, "off": .off][args[2].lowercased()] else {
-            throw CLIError("light <1-4> <steady|breathing|gradient|flow|off> [#RRGGBB...]")
+        let effects = LightingEffect.editable.map(\.rawValue)
+        guard args.count > 2,
+              let effect = LightingEffect.editable.first(where: { $0.rawValue.lowercased() == args[2].lowercased() }) else {
+            throw CLIError("light <1-4> <\(effects.joined(separator: "|"))> [#RRGGBB...]")
         }
         let colors = args.dropFirst(3).compactMap(LEDColor.init(hex:))
         let opts = options(args.dropFirst(3).filter { $0.contains("=") }[...])
         _ = try v.readProfile(p)
         var l = try v.readLighting(p)
         guard l.isValid else { throw CLIError("the controller returned a lighting format OpenVader does not know") }
-        l.apply(effect, colors: colors)
+        l.apply(effect, colors: colors, direction: opts["direction"].flatMap(FlowDirection.init(rawValue:)) ?? .left)
         if let b = opts["brightness"].flatMap(Int.init) { l.brightness = b }
         if let s = opts["speed"].flatMap(Int.init) { l.cycleTime = s }
         try v.commit(profile: p, lighting: l, progress: progressBar("Writing"))

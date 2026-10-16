@@ -29,6 +29,17 @@ struct LightingView: View {
                         .pickerStyle(.radioGroup)
                         .labelsHidden()
 
+                        if draft.lightingEffect.hasDirection {
+                            Divider()
+                            Picker("Direction", selection: Binding(
+                                get: { draft.lighting.direction ?? .left },
+                                set: { draft.setLighting(effect: draft.lightingEffect, colors: draft.lightingColors,
+                                                         direction: $0) })) {
+                                ForEach(FlowDirection.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+
                         let range = draft.lightingEffect.colorRange
                         if range.upperBound > 0 {
                             Divider()

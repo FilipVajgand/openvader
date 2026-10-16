@@ -124,6 +124,50 @@ import Testing
         #expect(l.color(frame: 0, led: 0) != l.color(frame: 0, led: 6))
     }
 
+    @Test func flowDirectionRoundTrips() {
+        var l = blank()
+        l.apply(.flow, colors: [])
+        #expect(l.direction == .left, "the default flow moves towards LED 0")
+        l.apply(.flow, colors: [], direction: .right)
+        #expect(l.direction == .right)
+        l.apply(.flow, colors: [])
+        #expect(l.direction == .left)
+        l.apply(.steady, colors: [LEDColor(red: 255, green: 0, blue: 0)])
+        #expect(l.direction == nil)
+    }
+
+    @Test(arguments: [(10, 10), (12, 10)])
+    func everyEffectReadsBackAsItself(leds: Int, frames: Int) {
+        let red = LEDColor(red: 255, green: 0, blue: 0), blue = LEDColor(red: 0, green: 0, blue: 255)
+        for effect in LightingEffect.editable {
+            for colors in [[red], [red, blue], [red, blue, LEDColor(red: 0, green: 255, blue: 0)]]
+            where effect.colorRange.contains(colors.count) || effect.colorRange == 0...0 {
+                var l = blank(leds: leds, frames: frames)
+                l.apply(effect, colors: colors)
+                #expect(l.effect == effect, "\(effect) with \(colors.count) colours on \(leds) LEDs")
+                #expect(l.bytes[8] == effect.ledType)
+            }
+        }
+    }
+
+    @Test func cometDirectionRoundTrips() {
+        var l = blank()
+        let green = LEDColor(red: 0, green: 255, blue: 0)
+        l.apply(.comet, colors: [green], direction: .right)
+        #expect(l.effect == .comet && l.direction == .right)
+        l.apply(.comet, colors: [green], direction: .left)
+        #expect(l.effect == .comet && l.direction == .left)
+    }
+
+    @Test func rainbowFadeIsOneColourPerFrame() {
+        var l = blank()
+        l.apply(.rainbowFade, colors: [])
+        for f in 0..<l.frameCount {
+            #expect((0..<l.ledCount).allSatisfy { l.color(frame: f, led: $0) == l.color(frame: f, led: 0) })
+        }
+        #expect(l.color(frame: 0, led: 0) != l.color(frame: 5, led: 0))
+    }
+
     @Test func hexParsing() {
         #expect(LEDColor(hex: "#0078FF") == LEDColor(red: 0, green: 0x78, blue: 0xFF))
         #expect(LEDColor(hex: "12345") == nil)

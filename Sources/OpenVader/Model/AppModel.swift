@@ -61,11 +61,12 @@ struct ProfileDraft: Equatable {
     }
 
     /// Rebuilds the lighting frames from the editor's effect and colours.
-    mutating func setLighting(effect: LightingEffect, colors: [LEDColor]) {
+    /// Keeps the rainbow's current direction unless a new one is given.
+    mutating func setLighting(effect: LightingEffect, colors: [LEDColor], direction: FlowDirection? = nil) {
         lightingEffect = effect
         lightingColors = colors
         guard effect != .factory, lighting.isValid else { return }
-        lighting.apply(effect, colors: colors)
+        lighting.apply(effect, colors: colors, direction: direction ?? lighting.direction ?? .left)
     }
 }
 
