@@ -7,6 +7,6 @@ UNIVERSAL=1 scripts/build-app.sh release
 rm -rf dist
 mkdir -p dist
 ditto -c -k --sequesterRsrc --keepParent build/OpenVader.app "dist/OpenVader-$VERSION.zip"
-ditto -c -k --keepParent build/vaderctl "dist/vaderctl-$VERSION.zip"
+(cd build && ditto -c -k vaderctl "../dist/vaderctl-$VERSION.zip")
 (cd dist && shasum -a 256 ./*.zip > SHA256SUMS.txt)
 ls -l dist
