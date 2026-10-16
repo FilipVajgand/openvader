@@ -114,8 +114,9 @@ public struct LightingConfig: Sendable, Equatable {
         set { bytes[5] = UInt8(max(1, min(255, newValue))) }
     }
 
-    /// Flydigi's "sync grip lighting" flag (`GripSync`). It has no visible effect on the Vader 5 Pro, which
-    /// has no grip lights; the light bar ignored both game and test rumble with it set. Kept as read.
+    /// Flydigi's `GripSync` flag ("Vibration light effect"). On an Apex 5 it dims part of the bar while the
+    /// grips rumble; on a Vader 5 Pro (fw 7.1.5.0) a steady white bar at full brightness stayed unchanged
+    /// through game rumble with it set, so OpenVader does not offer it. Kept as read.
     public var gripSync: Bool {
         get { bytes[9] == 1 }
         set { bytes[9] = newValue ? 1 : 0 }
