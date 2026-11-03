@@ -193,24 +193,32 @@ struct KeyStrokePicker: View {
     @State private var monitor: Any?
 
     var body: some View {
-        HStack {
-            Menu(stroke.name) {
-                ForEach(KeyStroke.catalog, id: \.group) { group in
-                    Menu(group.group) {
-                        ForEach(group.keys, id: \.self) { code in
-                            Button(KeyStroke.names[code] ?? "\(code)") { stroke = KeyStroke(code, modifiers: stroke.modifiers) }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Menu(stroke.name) {
+                    ForEach(KeyStroke.catalog, id: \.group) { group in
+                        Menu(group.group) {
+                            ForEach(group.keys, id: \.self) { code in
+                                Button(KeyStroke.names[code] ?? "\(code)") { stroke = KeyStroke(code, modifiers: stroke.modifiers) }
+                            }
                         }
                     }
                 }
+                .frame(minWidth: 110)
+                Button(recording ? "Press a key…" : "Record") { recording ? stop() : start() }
+                    .help("Press the key on the keyboard instead of picking it")
             }
-            .frame(width: 130)
-            Button(recording ? "Press a key…" : "Record") { recording ? stop() : start() }
-            ForEach([("⌘", KeyStroke.Modifiers.command), ("⌥", .option), ("⌃", .control), ("⇧", .shift)], id: \.0) { label, mod in
-                Toggle(label, isOn: Binding(get: { stroke.modifiers.contains(mod) }, set: { on in
-                    if on { stroke.modifiers.insert(mod) } else { stroke.modifiers.remove(mod) }
-                }))
-                .toggleStyle(.button)
-                .help("Hold \(label) with the key")
+            HStack(spacing: 4) {
+                Text("Hold").font(.caption).foregroundStyle(.secondary)
+                ForEach([("⌘", KeyStroke.Modifiers.command, "Command"), ("⌥", .option, "Option"),
+                         ("⌃", .control, "Control"), ("⇧", .shift, "Shift")], id: \.0) { label, mod, name in
+                    Toggle(label, isOn: Binding(get: { stroke.modifiers.contains(mod) }, set: { on in
+                        if on { stroke.modifiers.insert(mod) } else { stroke.modifiers.remove(mod) }
+                    }))
+                    .toggleStyle(.button)
+                    .fixedSize()
+                    .help("Hold \(name) with the key")
+                }
             }
         }
         .onDisappear(perform: stop)
