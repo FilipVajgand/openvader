@@ -1,6 +1,8 @@
 #!/bin/sh
 # Builds OpenVader.app into ./build. Usage: scripts/build-app.sh [debug|release]
 # UNIVERSAL=1 builds for both Apple silicon and Intel.
+# SIGN_IDENTITY=<certificate name or SHA-1> signs with a real certificate instead of ad hoc,
+# so macOS keeps the Accessibility permission across rebuilds.
 set -eu
 cd "$(dirname "$0")/.."
 CONFIG="${1:-release}"
@@ -26,5 +28,5 @@ fi
 cp build/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 sed "s/__VERSION__/$VERSION/g" Resources/Info.plist > "$APP/Contents/Info.plist"
-codesign --force --sign - --timestamp=none "$APP"
+codesign --force --sign "${SIGN_IDENTITY:--}" --timestamp=none "$APP"
 echo "Built $APP ($VERSION) and build/vaderctl"

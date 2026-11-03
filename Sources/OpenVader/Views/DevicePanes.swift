@@ -172,21 +172,21 @@ struct ControllerSettingsView: View {
             }
 
             Card("Nintendo Switch mode", symbol: "rectangle.on.rectangle") {
-                Text("In Switch mode the controller uses a separate profile, which can be written but not read back. Copy the selected profile, \(model.profileName(model.selectedProfile)), into it.")
+                Text("Each profile has its own Switch-mode copy, which can be written but not read back, and Switch mode plays the copy of the running profile. OpenVader refreshes it every time you save. Copy \(model.profileName(model.selectedProfile)) again here if it was changed with another app.")
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Spacer()
-                    Button("Use for Switch Mode…") { confirmSwitch = true }
+                    Button("Refresh Switch Copy…") { confirmSwitch = true }
                         .disabled(model.busy != nil || model.hasUnsavedChanges)
                 }
                 if model.hasUnsavedChanges {
                     Text("Save your changes first.").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            .confirmationDialog("Replace the Switch mode profile?", isPresented: $confirmSwitch) {
+            .confirmationDialog("Replace this profile's Switch-mode copy?", isPresented: $confirmSwitch) {
                 Button("Copy \(model.profileName(model.selectedProfile))") { model.copyToSwitchMode() }
             } message: {
-                Text("Keyboard bindings are dropped because Switch mode cannot use them.")
+                Text("Mac keys on standard buttons are dropped because Switch mode cannot carry them. Extra buttons keep theirs.")
             }
         }
     }

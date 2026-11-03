@@ -143,14 +143,25 @@ struct StatusBar: View {
 }
 
 struct WaitingView: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
         ContentUnavailableView {
-            Label("Connect your Vader 5 Pro", systemImage: "cable.connector")
+            Label(model.switchModeConnected ? "In Switch mode" : "Connect your Vader 5 Pro",
+                  systemImage: model.switchModeConnected ? "gamecontroller" : "cable.connector")
         } description: {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Plug in the 2.4 GHz receiver, or connect the controller with a USB-C cable, then switch it on.")
-                Text("Bluetooth works for playing but cannot be used to change settings; that needs the receiver or the cable.")
-                    .foregroundStyle(.secondary)
+                if model.switchModeConnected {
+                    Text("The controller is plugged in as a Nintendo Pro Controller. To change settings, move the back switch fully left.")
+                    Text(model.hostEngineRunning
+                         ? "Extra buttons with Mac keys are working. Leave OpenVader running while you play."
+                         : "No extra buttons send Mac keys in the running profile.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Plug in the 2.4 GHz receiver, or connect the controller with a USB-C cable, then switch it on.")
+                    Text("Bluetooth works for playing but cannot be used to change settings; that needs the receiver or the cable.")
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(maxWidth: 420)
         } actions: {

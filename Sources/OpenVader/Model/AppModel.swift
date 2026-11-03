@@ -24,11 +24,35 @@ struct ProfileDraft: Equatable {
         lightingEffect = s.lighting.effect ?? .factory
     }
 
-    /// A button does something on the Mac (or stops doing so). The
-    /// controller's slot is marked "keyboard/mouse" so games stop seeing it.
+    /// A button does something on the Mac (or stops doing so). Games stop seeing it:
+    /// an extra button plays its Home-pulse code, so it also works in Switch mode
+    /// (see `HomePulse`); any other button is marked "keyboard/mouse".
     mutating func setHostAction(_ action: HostAction?, for key: ControllerKey) {
+        let hadPulse = host.action(for: key) != nil && mapping.binding(for: key).action == .macro
         host.setAction(action, for: key)
-        mapping.setBinding(ButtonBinding(action: action == nil ? .standard : .keyboardMouse), for: key)
+        if hadPulse { macros.macros.removeAll { $0.trigger == key } }
+        guard action != nil else {
+            mapping.setBinding(ButtonBinding(), for: key)
+            return
+        }
+        if let pulse = HomePulse.macro(for: key), macros.macro(for: key) == nil,
+           macros.macros.count < MacroStore.maxMacros {
+            macros.macros.append(pulse)
+            mapping.setBinding(ButtonBinding(action: .macro), for: key)
+        } else {
+            mapping.setBinding(ButtonBinding(action: .keyboardMouse), for: key)
+        }
+    }
+
+    /// Extra buttons with a Mac action that still use the Windows-style marker,
+    /// so they do nothing in Switch mode until set again.
+    var hostKeysMissingSwitchCode: [ControllerKey] {
+        HomePulse.keys.filter { host.action(for: $0) != nil && mapping.binding(for: $0).action == .keyboardMouse }
+    }
+
+    /// Gives those buttons their Switch-mode codes.
+    mutating func addSwitchCodes() {
+        for key in hostKeysMissingSwitchCode { setHostAction(host.action(for: key), for: key) }
     }
 
     /// A stick drives the Mac's pointer, keys or scrolling, or goes back to being a stick.
@@ -163,6 +187,8 @@ final class AppModel {
     var checkingFirmware = false
     var hostPermission = HostEngine.hasPermission
     var hostEngineRunning = false
+    /// The controller is plugged in with its back switch on Switch mode.
+    var switchModeConnected = false
     var macroLibrary: [Macro] = MacroLibrary.load()
     var profileLibrary: [ProfileFile] = ProfileFile.library()
 
@@ -176,10 +202,23 @@ final class AppModel {
     @ObservationIgnored private var hostStore = HostMappingStore.load()
     @ObservationIgnored let engine = HostEngine()
     @ObservationIgnored private var engineListening = false
+    @ObservationIgnored private var switchBridge: SwitchBridge?
 
     init() {
         watcher = DeviceWatcher { [weak self] in
             MainActor.assumeIsolated { self?.devicesChanged() }
+        }
+        if !Self.demo {
+            let bridge = SwitchBridge()
+            let engine = engine
+            bridge.onKey = { engine.tap($0) }
+            bridge.onPresenceChange = { [weak self] present in
+                MainActor.assumeIsolated {
+                    self?.switchModeConnected = present
+                    self?.updateEngine()
+                }
+            }
+            switchBridge = bridge
         }
         pollTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }
@@ -346,6 +385,7 @@ final class AppModel {
         busy = nil
         progress = nil
         state = .searching
+        updateEngine()
     }
 
     /// One automatic backup per connection, keeping the 20 newest.
@@ -405,6 +445,8 @@ final class AppModel {
         let macros = d.macros != s.macros ? d.macros : nil
         perform("Saving profile \(i + 1)…", showsProgress: true) { device, progress in
             let snapshot = try device.commit(profile: i, mapping: mapping, lighting: lighting, macros: macros, progress: progress)
+            // Switch mode plays each profile's own Switch copy, which only changes when copied.
+            if mapping != nil || macros != nil { try device.saveToSwitchMode(profile: i) }
             return (snapshot, try device.profileVersions())
         } then: { snapshot, versions in
             self.hostStore.set(d.host, controller: self.controllerKey, profile: i)
@@ -472,7 +514,7 @@ final class AppModel {
         let i = selectedProfile
         perform("Copying to Switch mode…") { device, _ in
             try device.saveToSwitchMode(profile: i)
-        } then: { self.notice = "Profile \(i + 1) is now the Nintendo Switch mode profile." }
+        } then: { self.notice = "Profile \(i + 1)'s Switch-mode copy is up to date." }
     }
 
     func rumble(gripLeft: UInt8, gripRight: UInt8, triggerLeft: UInt8 = 0, triggerRight: UInt8 = 0, seconds: Double = 0.5) {
@@ -647,14 +689,40 @@ final class AppModel {
         updateEngine()
     }
 
-    /// Runs the engine while the running profile has Mac actions and access is granted.
+    /// The Mac actions of the profile that was running when the controller was last
+    /// configurable. Switch mode plays that profile, and the controller cannot be asked
+    /// which one it is while it is in Switch mode.
+    private var switchModeHostMappings: HostProfileMappings? {
+        let d = UserDefaults.standard
+        guard let controller = d.string(forKey: "lastController"), d.object(forKey: "lastActiveProfile") != nil else { return nil }
+        let m = hostStore.mappings(controller: controller, profile: d.integer(forKey: "lastActiveProfile"))
+        return m.isEmpty ? nil : m
+    }
+
+    /// Runs the engine while the running profile has Mac actions and access is granted:
+    /// from the live input stream when configurable, from Home-pulse codes in Switch mode.
     func updateEngine() {
-        let mappings = isConnected && hostPermission ? activeHostMappings : nil
+        if isConnected, let active = versions?.active, uid != nil {
+            UserDefaults.standard.set(controllerKey, forKey: "lastController")
+            UserDefaults.standard.set(active, forKey: "lastActiveProfile")
+        }
+        let mappings: HostProfileMappings?
+        if !hostPermission {
+            mappings = nil
+        } else if isConnected {
+            mappings = activeHostMappings
+        } else if switchModeConnected {
+            mappings = switchModeHostMappings
+        } else {
+            mappings = nil
+        }
         engine.use(mappings)
         hostEngineRunning = mappings != nil
-        if hostEngineRunning != engineListening {
-            engineListening = hostEngineRunning
-            listen(hostEngineRunning)
+        switchLog.log("Mac actions \(mappings == nil ? "off" : "on", privacy: .public): permission \(self.hostPermission, privacy: .public), configurable \(self.isConnected, privacy: .public), Switch mode \(self.switchModeConnected, privacy: .public)")
+        let stream = isConnected && hostEngineRunning
+        if stream != engineListening {
+            engineListening = stream
+            listen(stream)
         }
     }
 

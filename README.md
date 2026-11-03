@@ -36,7 +36,7 @@ a Switch or a PC.
 
 | Area | What it changes | Where it runs |
 |---|---|---|
-| **Profiles** | Four on-board slots: switch, rename, copy between slots, reset to factory, back up, restore, a profile library and `.ovprofile` files, copy one into Nintendo Switch mode | controller + Mac |
+| **Profiles** | Four on-board slots: switch, rename, copy between slots, reset to factory, back up, restore, a profile library and `.ovprofile` files; each save also refreshes the profile's Nintendo Switch-mode copy | controller + Mac |
 | **Buttons** | Remap M1–M4, LM/RM, C/Z and every standard button to any Xbox-layout button; per-button turbo (1–20/s, hold or toggle) | controller |
 | **Sticks** | Linear / instant / delayed / custom curve, inner and outer dead zone, circular or square range | controller |
 | **Triggers** | Physical travel window (hair trigger), trigger-motor vibration strength | controller |
@@ -186,6 +186,7 @@ raw input and what it sends to games:
 | Lighting: every effect, rainbow direction, speed levels | verified by eye: the controller fades between frames |
 | Mac keyboard/mouse markers: a button or stick handed to the Mac is hidden from games while OpenVader still reads it | verified |
 | Mac keyboard/mouse output: a paddle typing a key, gyro moving the pointer | verified (needs Accessibility access) |
+| Mac keys from M1/M2, LM/RM, C/Z in Switch mode over the cable (two-pulse Home codes), without opening the Games app | verified; taps only, about 0.1 s later |
 | Motor test: trigger motors | verified: both triggers buzz over the cable |
 | Bluetooth on a Mac: games see an Xbox One controller; grip rumble | verified |
 | Bluetooth on a Mac: trigger rumble from games | does not reach the trigger motors |
@@ -193,7 +194,8 @@ raw input and what it sends to games:
 | Grip rumble on/off per motor | verified: a switched-off motor stays still under game rumble |
 | Stick precision | verified: at 8 bit, games receive 256-step values |
 | Centre sensitivity | written and read back; no clear effect measured yet |
-| Grip rumble strength window and gain, Switch-mode copy | written through the same verified paths; effect not yet checked |
+| Grip rumble strength window and gain | written through the same verified paths; effect not yet checked |
+| Switch-mode copy: each profile has its own, played while that profile is active | verified |
 
 If something does not behave the way OpenVader says it will, please open an issue with the output of
 `OPENVADER_TRACE=1 build/vaderctl …` and your firmware version.

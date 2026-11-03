@@ -59,7 +59,8 @@ struct ButtonsView: View {
                 HStack {
                     Spacer()
                     Button("Reset All Buttons") {
-                        for key in ControllerKey.remappable where draft.mapping.binding(for: key).action != .macro {
+                        for key in ControllerKey.remappable
+                        where draft.mapping.binding(for: key).action != .macro || draft.host.action(for: key) != nil {
                             if draft.host.action(for: key) != nil { draft.setHostAction(nil, for: key) }
                             draft.mapping.setBinding(ButtonBinding(), for: key)
                         }
@@ -132,7 +133,7 @@ struct ButtonInspector: View {
         Card(key.name, symbol: ControllerKey.extraButtons.contains(key) ? "plus.circle" : "circle.circle") {
             Text(description).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
 
-            if binding.wrappedValue.action == .macro {
+            if binding.wrappedValue.action == .macro && hostAction == nil {
                 Label("This button plays a macro. Edit or remove it under Macros.", systemImage: "repeat.circle")
                     .foregroundStyle(.tint)
             } else {
@@ -160,6 +161,15 @@ struct ButtonInspector: View {
                 if hostAction != nil {
                     Text("Games no longer see this button; OpenVader presses the key or mouse button on the Mac instead.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    if HomePulse.keys.contains(key) {
+                        if binding.wrappedValue.action == .macro {
+                            Text("Also works in Switch mode over the cable, as a tap (about 0.1 s later). Keep OpenVader running.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Button("Make It Work in Switch Mode") { draft.addSwitchCodes() }
+                                .font(.caption)
+                        }
+                    }
                 } else if binding.wrappedValue.action == .keyboardMouse {
                     Text("Set to a keyboard or mouse action by Flydigi's Windows app. Pick a Mac action to use it here.")
                         .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -190,7 +200,7 @@ struct ButtonInspector: View {
                     if hostAction != nil { draft.setHostAction(nil, for: key) }
                     binding.wrappedValue = ButtonBinding()
                 }
-                .disabled((binding.wrappedValue.isDefault && hostAction == nil) || binding.wrappedValue.action == .macro)
+                .disabled((binding.wrappedValue.isDefault && hostAction == nil) || (binding.wrappedValue.action == .macro && hostAction == nil))
             }
         }
     }

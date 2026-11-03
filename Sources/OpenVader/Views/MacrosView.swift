@@ -8,6 +8,9 @@ struct MacrosView: View {
 
     private static let triggers: [ControllerKey] = [.m1, .m2, .m3, .m4, .lm, .rm, .c, .z, .lb, .rb, .a, .b, .x, .y]
 
+    /// Macros the user made; the Switch-mode codes of Mac keys stay out of sight.
+    private var userMacros: [Macro] { draft.macros.macros.filter { draft.host.action(for: $0.trigger) == nil } }
+
     var body: some View {
         Page(title: "Macros",
              subtitle: "A macro is a sequence of button presses the controller plays by itself when you press its trigger button. Up to \(MacroStore.maxMacros) per profile.") {
@@ -18,10 +21,10 @@ struct MacrosView: View {
 
             HStack(alignment: .top, spacing: 18) {
                 Card("On this profile", symbol: "list.bullet") {
-                    if draft.macros.macros.isEmpty {
+                    if userMacros.isEmpty {
                         Text("No macros yet.").foregroundStyle(.secondary)
                     }
-                    ForEach(draft.macros.macros) { m in
+                    ForEach(userMacros) { m in
                         Button { editing = m.trigger } label: {
                             HStack {
                                 Text(m.trigger.name).font(.headline).frame(width: 44, alignment: .leading)

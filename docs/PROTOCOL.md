@@ -52,7 +52,7 @@ A frame with a bad checksum is ignored silently, so time out and retry; there is
 | `A4`/`A8`/`AD` | write start | profile, 0, packets, 20 | |
 | `A5`/`A9`/`AE` | write packet | index, 20 bytes | each ACKed |
 | `A6` | save | tag lo, tag hi | commits **the running profile**; 10 s timeout |
-| `AB` | save to Switch bank | irregular vendor frame | `5A A5 AB 04 tagLo tagHi (4+profile) sum(AB 04 tagLo tagHi)` |
+| `AB` | save to Switch copy | irregular vendor frame | `5A A5 AB 04 tagLo tagHi (4+profile) sum(AB 04 tagLo tagHi)`; copies that profile's mapping and macros into its own Switch copy |
 | `EF` | live input | — | streamed at ~500 Hz while the raw stream is on |
 
 Never sent: `1F` (bootloader), `AF` (resets all four profiles despite taking a slot), `FD` (factory reset),
@@ -132,3 +132,21 @@ The mapping key table must also point the trigger key at `20` (macro).
 17–22 gyro  int16, 2000 °/s full scale
 23–28 accel int16, 4096 = 1 g
 ```
+
+## Nintendo Switch mode over the cable
+
+With the back switch fully right the controller enumerates as a Pro Controller (`057E:2009`) and ignores
+configuration commands. Each profile has its own Switch copy, written with `AB`; Switch mode plays the copy
+of whichever profile is active, so an edited profile keeps its old Switch behaviour until it is copied again.
+Checked on fw 7.1.5.0 on 2026-11-03:
+
+- Remapping to Home (`27`) works; key ids 26 and 28–31 send nothing. There is no Capture.
+- On-board macros play, including Home presses.
+- In the `0x30` report, byte 3/4/5 hold the right/shared/left buttons; Home is byte 4 `0x10`
+  (`0x80` there is the charging-grip flag).
+- macOS 26 opens the Games app on any single Home press (16–150 ms) but not on a double press, and
+  GameController never passes Home to apps; raw IOHID still sees it.
+
+OpenVader uses this to carry the extra buttons' Mac keys: each plays a macro of two Home pulses
+(20/50/90 ms each, 20 ms apart), and the app decodes the pair (`HomePulse`). Pulses came back 8 ms
+short to 15 ms long.

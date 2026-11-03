@@ -30,7 +30,7 @@ let usage = """
       sleep <minutes, 0 = never>
       feature <name> <on|off>      names: \(DeviceFeature.allCases.map(cliName).joined(separator: ", "))
       third-party <on|off>         let Steam / SDL games take over the controller
-      switch-mode <1-4>            copy a profile into the Nintendo Switch bank
+      switch-mode <1-4>            refresh a profile's Nintendo Switch-mode copy
       rumble [milliseconds]
 
     Buttons: \(ControllerKey.allCases.map(cliName).joined(separator: " "))
@@ -386,7 +386,7 @@ func run(_ args: [String]) throws {
     case "switch-mode":
         let p = try profileArg(args, 1)
         try v.saveToSwitchMode(profile: p)
-        print("Profile \(p + 1) copied to the Nintendo Switch bank.")
+        print("Profile \(p + 1)'s Switch-mode copy is up to date.")
 
     case "rumble":
         let ms = args.count > 1 ? Int(args[1]) ?? 400 : 400

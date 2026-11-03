@@ -163,6 +163,22 @@ final class HostEngine: @unchecked Sendable {
         }
     }
 
+    /// Presses and releases a button's Mac action once (Switch mode only reports taps).
+    func tap(_ key: ControllerKey) {
+        let action: HostAction? = lock.withLock {
+            guard let m = mappings, Self.hasPermission, let a = m.action(for: key) else {
+                switchLog.log("No Mac action for \(key.name, privacy: .public): mappings \(self.mappings == nil ? "none" : "loaded", privacy: .public), permission \(Self.hasPermission, privacy: .public)")
+                return nil
+            }
+            press(a, down: true)
+            return a
+        }
+        guard let action else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [self] in
+            lock.withLock { press(action, down: false) }
+        }
+    }
+
     private func press(_ action: HostAction, down: Bool) {
         switch action {
         case .key(let stroke): key(stroke, down: down)
